@@ -1,0 +1,414 @@
+{
+  "source": "Football-Data.co.uk public CSV",
+  "source_base_url": "https://www.football-data.co.uk/mmz4281",
+  "sample_count": 14305,
+  "seasons": [
+    "1920",
+    "2021",
+    "2122",
+    "2223",
+    "2324",
+    "2425"
+  ],
+  "season_counts": {
+    "1920": 2263,
+    "2021": 2438,
+    "2122": 2438,
+    "2223": 2438,
+    "2324": 2364,
+    "2425": 2364
+  },
+  "leagues": [
+    "England Premier League",
+    "France Ligue 1",
+    "Germany Bundesliga",
+    "Italy Serie A",
+    "Netherlands Eredivisie",
+    "Portugal Primeira Liga",
+    "Spain La Liga"
+  ],
+  "league_counts": {
+    "England Premier League": 2280,
+    "France Ligue 1": 2031,
+    "Germany Bundesliga": 1836,
+    "Italy Serie A": 2280,
+    "Netherlands Eredivisie": 1762,
+    "Portugal Primeira Liga": 1836,
+    "Spain La Liga": 2280
+  },
+  "time_range": {
+    "start": "2019-08-02",
+    "end": "2025-05-25"
+  },
+  "downloaded_files": [
+    {
+      "season": "1920",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "1920",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "1920",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/F1.csv",
+      "rows": 279
+    },
+    {
+      "season": "1920",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "1920",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/N1.csv",
+      "rows": 232
+    },
+    {
+      "season": "1920",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "1920",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\1920\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/1920/SP1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2021",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2021",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "2021",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/F1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2021",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2021",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/N1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2021",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2021",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2021\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2021/SP1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2122",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2122",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "2122",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/F1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2122",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2122",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/N1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2122",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2122",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2122\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2122/SP1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2223",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2223",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "2223",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/F1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2223",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2223",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/N1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2223",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2223",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2223\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2223/SP1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2324",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2324",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "2324",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/F1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2324",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2324",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/N1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2324",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2324",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2324\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2324/SP1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2425",
+      "league": "D1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\D1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/D1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2425",
+      "league": "E0",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\E0.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/E0.csv",
+      "rows": 380
+    },
+    {
+      "season": "2425",
+      "league": "F1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\F1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/F1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2425",
+      "league": "I1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\I1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/I1.csv",
+      "rows": 380
+    },
+    {
+      "season": "2425",
+      "league": "N1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\N1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/N1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2425",
+      "league": "P1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\P1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/P1.csv",
+      "rows": 306
+    },
+    {
+      "season": "2425",
+      "league": "SP1",
+      "path": "C:\\Users\\Administrator\\Documents\\New project\\data\\raw\\football-data\\2425\\SP1.csv",
+      "url": "https://www.football-data.co.uk/mmz4281/2425/SP1.csv",
+      "rows": 380
+    }
+  ],
+  "feature_columns": [
+    "league_avg_goals_pre",
+    "league_home_goals_pre",
+    "league_away_goals_pre",
+    "home_recent8_gf",
+    "home_recent8_ga",
+    "away_recent8_gf",
+    "away_recent8_ga",
+    "home_home8_gf",
+    "home_home8_ga",
+    "away_away8_gf",
+    "away_away8_ga",
+    "home_elo_pre",
+    "away_elo_pre",
+    "elo_diff_pre",
+    "home_rest_days",
+    "away_rest_days",
+    "home_rest_missing",
+    "away_rest_missing",
+    "market_home_prob",
+    "market_draw_prob",
+    "market_away_prob",
+    "market_over25_prob",
+    "market_under25_prob",
+    "market_missing_1x2",
+    "market_missing_ou",
+    "asian_handicap",
+    "asian_abs_depth",
+    "market_home_odds",
+    "market_draw_odds",
+    "market_away_odds",
+    "market_over25_odds",
+    "market_under25_odds",
+    "xg_base_home",
+    "xg_base_away",
+    "xg_base_total",
+    "xg_base_margin",
+    "lineup_missing",
+    "tracking_missing"
+  ],
+  "targets": [
+    "residual_home",
+    "residual_away"
+  ],
+  "leakage_policy": {
+    "same_match_post_event_fields_excluded": [
+      "HS",
+      "AS",
+      "HST",
+      "AST",
+      "HF",
+      "AF",
+      "HC",
+      "AC",
+      "HY",
+      "AY",
+      "HR",
+      "AR",
+      "HTHG",
+      "HTAG",
+      "HTR"
+    ],
+    "rolling_features_use_prior_matches_only": true,
+    "same_kickoff_group_updated_after_feature_build": true,
+    "lineups_not_fabricated": true,
+    "tracking_not_fabricated": true,
+    "real_pregame_xg_not_fabricated": true
+  },
+  "missing_data_policy": {
+    "lineup_missing": 1,
+    "tracking_missing": 1,
+    "pregame_xg_missing": 1
+  },
+  "dataset_path": "C:\\Users\\Administrator\\Documents\\New project\\data\\historical_football_dataset.csv",
+  "profile_path": "C:\\Users\\Administrator\\Documents\\New project\\data\\historical_football_dataset.profile.json"
+}
