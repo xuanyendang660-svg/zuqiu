@@ -6,8 +6,8 @@ import csv
 import json
 import math
 import os
-import shutil
 import time
+import zipfile
 from collections import Counter, defaultdict, deque
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -1144,17 +1144,13 @@ def _cold_big_ball_share(predictions: list[dict[str, object]]) -> float:
 def _build_ready_pack(package_path: Path, paths: list[Path]) -> None:
     if package_path.exists():
         package_path.unlink()
-    staging = package_path.parent / ".model_ready_pack"
-    if staging.exists():
-        shutil.rmtree(staging)
-    staging.mkdir(parents=True, exist_ok=True)
-    for path in paths:
-        relative = path.relative_to(package_path.parent)
-        target = staging / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
-    shutil.make_archive(str(package_path.with_suffix("")), "zip", staging)
-    shutil.rmtree(staging)
+    with zipfile.ZipFile(package_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(paths, key=lambda item: item.relative_to(package_path.parent).as_posix()):
+            relative = path.relative_to(package_path.parent).as_posix()
+            info = zipfile.ZipInfo(relative, date_time=(2025, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, path.read_bytes())
 
 
 def _build_pr_description(metrics: dict[str, object], profile: dict[str, object]) -> str:
