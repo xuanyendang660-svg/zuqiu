@@ -14,8 +14,26 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw "GitHub CLI is not installed or is not on PATH."
 }
 
-gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
+function Test-GhAuth {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    gh auth status *> $null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference
+    return $exitCode -eq 0
+}
+
+function Test-GhRepoExists {
+    param([string] $Repository)
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    gh repo view $Repository *> $null
+    $exitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference
+    return $exitCode -eq 0
+}
+
+if (-not (Test-GhAuth)) {
     gh auth login --hostname github.com --web --git-protocol https
 }
 
@@ -28,8 +46,7 @@ $remoteUrl = (git config --get remote.origin.url)
 
 if (-not $remoteUrl) {
     $repoFullName = "$owner/$repoName"
-    gh repo view $repoFullName *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if (-not (Test-GhRepoExists -Repository $repoFullName)) {
         gh repo create $repoFullName --private --description "Football-Data residual exact-score training system" --disable-wiki
     }
     git remote add origin "https://github.com/$repoFullName.git"
