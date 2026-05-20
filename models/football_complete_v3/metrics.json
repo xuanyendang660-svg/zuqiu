@@ -1,0 +1,127 @@
+{
+  "sample_count": 14305,
+  "train_count": 11941,
+  "holdout_count": 2364,
+  "holdout_seasons": [
+    "2425"
+  ],
+  "train_time_range": {
+    "start": "2019-08-02",
+    "end": "2024-06-02"
+  },
+  "holdout_time_range": {
+    "start": "2024-08-09",
+    "end": "2025-05-25"
+  },
+  "leagues": [
+    "England Premier League",
+    "France Ligue 1",
+    "Germany Bundesliga",
+    "Italy Serie A",
+    "Netherlands Eredivisie",
+    "Portugal Primeira Liga",
+    "Spain La Liga"
+  ],
+  "feature_count": 38,
+  "feature_columns": [
+    "league_avg_goals_pre",
+    "league_home_goals_pre",
+    "league_away_goals_pre",
+    "home_recent8_gf",
+    "home_recent8_ga",
+    "away_recent8_gf",
+    "away_recent8_ga",
+    "home_home8_gf",
+    "home_home8_ga",
+    "away_away8_gf",
+    "away_away8_ga",
+    "home_elo_pre",
+    "away_elo_pre",
+    "elo_diff_pre",
+    "home_rest_days",
+    "away_rest_days",
+    "home_rest_missing",
+    "away_rest_missing",
+    "market_home_prob",
+    "market_draw_prob",
+    "market_away_prob",
+    "market_over25_prob",
+    "market_under25_prob",
+    "market_missing_1x2",
+    "market_missing_ou",
+    "asian_handicap",
+    "asian_abs_depth",
+    "market_home_odds",
+    "market_draw_odds",
+    "market_away_odds",
+    "market_over25_odds",
+    "market_under25_odds",
+    "xg_base_home",
+    "xg_base_away",
+    "xg_base_total",
+    "xg_base_margin",
+    "lineup_missing",
+    "tracking_missing"
+  ],
+  "home_ridge_alpha": 100.0,
+  "away_ridge_alpha": 100.0,
+  "residual_shrinkage": 0.45,
+  "base_goal_MAE": 0.88386193481324,
+  "adjusted_goal_MAE": 0.8785390289359816,
+  "adjusted_goal_MAE_below_base": true,
+  "base_over25_brier": 0.23734466053585623,
+  "adjusted_over25_brier": 0.2366204059247208,
+  "adjusted_over25_brier_below_base": true,
+  "base_btts_brier": 0.24541700174802772,
+  "adjusted_btts_brier": 0.2451742489291333,
+  "adjusted_btts_brier_below_base": true,
+  "top1_comfort_score_share": 0.7195431472081218,
+  "audits": {
+    "top5_template_cluster": {
+      "value": 0.8703045685279083,
+      "status": "warn"
+    },
+    "high_variance_audit": {
+      "max_top1_score_share": 0.40143824027072755,
+      "top1_4plus_goal_share": 0.010998307952622674,
+      "status": "warn"
+    },
+    "cold_big_ball_audit": {
+      "value": 0.005499153976311337,
+      "status": "warn"
+    },
+    "lineup_missing_no_A_grade": {
+      "value": true,
+      "status": "grade_limited"
+    },
+    "tracking_missing": {
+      "value": true,
+      "status": "missing"
+    }
+  },
+  "model_grade_limit": {
+    "max_grade": "B",
+    "reason": "Football-Data CSV has no verified lineups, injuries, or tracking pressure data; A grade disabled."
+  },
+  "leakage_policy": {
+    "used_same_match_shots_corners_cards": false,
+    "excluded_fields": [
+      "HS",
+      "AS",
+      "HST",
+      "AST",
+      "HF",
+      "AF",
+      "HC",
+      "AC",
+      "HY",
+      "AY",
+      "HR",
+      "AR",
+      "HTHG",
+      "HTAG",
+      "HTR"
+    ],
+    "rolling_features_prior_only": true
+  }
+}
