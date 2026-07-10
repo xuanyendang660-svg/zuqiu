@@ -7,57 +7,23 @@ jobs:
   lookup:
     runs-on: ubuntu-latest
     steps:
-      - name: Query Sofascore
+      - name: Query ESPN scoreboards
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, urllib.request, urllib.parse, re
+          import json, urllib.request
           UA={'User-Agent':'Mozilla/5.0','Accept':'application/json'}
-          def get(url):
-              req=urllib.request.Request(url,headers=UA)
-              with urllib.request.urlopen(req,timeout=20) as r:
-                  return json.load(r)
-          targets=[
-            ('VPS','SJK'),('PK-35','KaPa'),('Dundalk','Drogheda United'),
-            ('Athlone Town','Cobh Ramblers'),('Bray Wanderers','UCD'),
-            ('Cork City','Longford Town'),('Finn Harps','Treaty United'),
-            ('Wexford FC','Kerry FC'),('Spain','Belgium'),
-            ('Waterford FC','St Patrick’s Athletic')
-          ]
-          events=[]
-          for d in ['2026-07-10','2026-07-11']:
+          leagues=['fin.1','fin.2','irl.1','irl.2','fifa.world']
+          for lg in leagues:
+              url=f'https://site.api.espn.com/apis/site/v2/sports/soccer/{lg}/scoreboard?dates=20260710'
               try:
-                  data=get(f'https://www.sofascore.com/api/v1/sport/football/scheduled-events/{d}')
-                  events += data.get('events',[])
-              except Exception as e:
-                  print('DATE_ERR',d,repr(e))
-          def norm(s):
-              return re.sub(r'[^a-z0-9]','',s.lower().replace('’',"'"))
-          matched=[]
-          for e in events:
-              h=e.get('homeTeam',{}).get('name','')
-              a=e.get('awayTeam',{}).get('name','')
-              nh,na=norm(h),norm(a)
-              for th,ta in targets:
-                  if (norm(th) in nh or nh in norm(th)) and (norm(ta) in na or na in norm(ta)):
-                      matched.append(e); break
-          seen=set()
-          for e in matched:
-              eid=e.get('id')
-              if eid in seen: continue
-              seen.add(eid)
-              out={
-                'id':eid,'home':e.get('homeTeam',{}).get('name'),'away':e.get('awayTeam',{}).get('name'),
-                'status':e.get('status',{}),'homeScore':e.get('homeScore'),'awayScore':e.get('awayScore'),
-                'startTimestamp':e.get('startTimestamp'),'tournament':e.get('tournament',{}).get('name')
-              }
-              print('EVENT',json.dumps(out,ensure_ascii=False))
-              for label,path in [('odds',f'event/{eid}/odds/1/all'),('stats',f'event/{eid}/statistics'),('incidents',f'event/{eid}/incidents'),('lineups',f'event/{eid}/lineups')]:
-                  try:
-                      x=get('https://www.sofascore.com/api/v1/'+path)
-                      txt=json.dumps(x,ensure_ascii=False,separators=(',',':'))
-                      print(label.upper(),eid,txt[:12000])
-                  except Exception as ex:
-                      print(label.upper()+'_ERR',eid,repr(ex))
-          print('MATCHED_COUNT',len(seen))
+                  req=urllib.request.Request(url,headers=UA)
+                  with urllib.request.urlopen(req,timeout=20) as r: data=json.load(r)
+                  print('LEAGUE',lg)
+                  for e in data.get('events',[]):
+                      comp=e.get('competitions',[{}])[0]
+                      teams=comp.get('competitors',[])
+                      print(json.dumps({'id':e.get('id'),'name':e.get('name'),'date':e.get('date'),'status':e.get('status'),'competitors':teams,'odds':comp.get('odds'),'details':comp.get('details')},ensure_ascii=False,separators=(',',':')))
+              except Exception as ex:
+                  print('ERR',lg,repr(ex))
           PY
