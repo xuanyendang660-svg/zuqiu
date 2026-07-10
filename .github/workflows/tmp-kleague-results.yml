@@ -1,0 +1,29 @@
+name: Temporary K League results lookup
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query official K League API
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS 'https://www.kleague.com/getScheduleList.do' \
+            -H 'accept: application/json, text/plain, */*' \
+            -H 'content-type: application/json; charset=utf-8' \
+            -H 'referer: https://www.kleague.com/schedule.do?leagueId=2' \
+            --data-raw '{"leagueId":"2","teamId":"","year":"2026","month":"07","ticketYn":""}' \
+            -o response.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('response.json',encoding='utf-8'))
+          rows=data.get('data',{}).get('scheduleList',[])
+          for r in rows:
+              if r.get('gameDate')=='2026.07.10':
+                  print(json.dumps({k:r.get(k) for k in ['gameId','roundId','gameDate','gameTime','homeTeamName','awayTeamName','homeGoal','awayGoal','endYn','gameStatus','audienceQty']},ensure_ascii=False))
+          PY
