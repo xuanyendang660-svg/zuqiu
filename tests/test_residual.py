@@ -20,22 +20,29 @@ def _market_base(rows: int) -> np.ndarray:
 
 def _cyclic_data() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     rng = np.random.default_rng(19)
-    regimes = [
-        (np.array([1, 0, 0, 0, 0, 0], dtype=float), (2, 1)),
-        (np.array([0, 1, 0, 0, 0, 0], dtype=float), (6, 1)),
-        (np.array([0, 0, 1, 0, 0, 0], dtype=float), (1, 5)),
-        (np.array([0, 0, 0, 1, 0, 0], dtype=float), (3, 3)),
-        (np.array([0, 0, 0, 0, 1, 0], dtype=float), (0, 0)),
-        (np.array([0, 0, 0, 0, 0, 1], dtype=float), (3, 0)),
+    scores = [
+        (2, 1),
+        (6, 1),
+        (1, 5),
+        (3, 3),
+        (0, 0),
+        (3, 0),
+        (0, 3),
+        (1, 1),
+        (1, 0),
+        (0, 1),
+        (2, 0),
+        (1, 2),
     ]
+    centers = np.eye(len(scores), dtype=float)
     features: list[np.ndarray] = []
     home: list[int] = []
     away: list[int] = []
     for index in range(720):
-        center, score = regimes[index % len(regimes)]
-        features.append(center + rng.normal(0, 0.02, size=center.shape))
-        home.append(score[0])
-        away.append(score[1])
+        regime = index % len(scores)
+        features.append(centers[regime] + rng.normal(0, 0.02, size=len(scores)))
+        home.append(scores[regime][0])
+        away.append(scores[regime][1])
     return np.vstack(features), np.array(home), np.array(away)
 
 
@@ -55,7 +62,8 @@ def test_residual_can_override_market_two_one_with_one_five() -> None:
     base = _market_base(len(features))
     model = MarketResidualScoreModel(_config(23, 120)).fit(features, home, away, base)
 
-    query = np.array([[0, 0, 1, 0, 0, 0]], dtype=float)
+    query = np.zeros((1, 12), dtype=float)
+    query[0, 2] = 1.0
     distribution = model.predict_distribution(query, _market_base(1))[0]
     predicted = tuple(
         int(value) for value in np.unravel_index(np.argmax(distribution), distribution.shape)
