@@ -99,7 +99,12 @@ def test_repair_credits_own_goal_to_opponent(tmp_path: Path) -> None:
         ),
     )
 
-    repaired = repair_live_score_integrity(dataset, [record], cutoffs=(15, 45))
+    repaired = repair_live_score_integrity(
+        dataset,
+        [record],
+        cutoffs=(15, 45),
+        side_map={1: (11, 22)},
+    )
 
     assert repaired.frame.loc[0, "live_home_score"] == 0
     assert repaired.frame.loc[0, "live_away_score"] == 1
@@ -141,7 +146,12 @@ def test_repair_rejects_event_final_mismatch(tmp_path: Path) -> None:
     dataset = LiveSnapshotDataset(frame, ("live_home_score", "live_away_score"))
 
     try:
-        repair_live_score_integrity(dataset, [record], cutoffs=(15,))
+        repair_live_score_integrity(
+            dataset,
+            [record],
+            cutoffs=(15,),
+            side_map={2: (11, 22)},
+        )
     except RuntimeError as exc:
         assert "event score 1-0 != index score 2-0" in str(exc)
     else:  # pragma: no cover
