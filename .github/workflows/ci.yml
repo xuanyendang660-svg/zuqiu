@@ -18,7 +18,7 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  live-state-audit:
+  live-score-integrity-audit:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -43,21 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run fixed live-state mechanism audit
+      - name: Run repaired live-score integrity audit
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_cold_blowout_state_audit.py \
+          python scripts/run_wyscout_cold_blowout_integrity_audit.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --output artifacts/wyscout_cold_blowout_state_audit.json \
-            > artifacts/wyscout_cold_blowout_state_audit.log 2>&1
+            --output artifacts/wyscout_cold_blowout_integrity_audit.json \
+            > artifacts/wyscout_cold_blowout_integrity_audit.log 2>&1
           status=$?
-          cat artifacts/wyscout_cold_blowout_state_audit.log
+          cat artifacts/wyscout_cold_blowout_integrity_audit.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-cold-blowout-state-audit
+          name: wyscout-cold-blowout-integrity-audit
           path: artifacts/
           retention-days: 14
