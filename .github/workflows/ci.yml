@@ -18,7 +18,7 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  statsbomb-live-state-validation:
+  halftime-state-validation:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -31,24 +31,32 @@ jobs:
       - run: pip install -e ".[dev]"
       - uses: actions/cache@v4
         with:
-          path: .cache/statsbomb
-          key: statsbomb-elo-live-state-v1
-      - name: Run cross-source live-state validation
+          path: .cache/football-data-halftime
+          key: football-data-halftime-2000-2026-v1
+      - name: Run halftime two-nil validation
         run: |
           mkdir -p artifacts
-          set +e
-          python scripts/run_statsbomb_elo_live_state.py \
-            --cache-dir .cache/statsbomb \
-            --workers 12 \
-            --max-matches 1800 \
-            --output artifacts/statsbomb_elo_live_state.json \
-            > artifacts/statsbomb_elo_live_state.log 2>&1
-          status=$?
-          cat artifacts/statsbomb_elo_live_state.log
-          exit $status
+          python scripts/run_halftime_two_nil_validation.py \
+            --cache-dir .cache/football-data-halftime \
+            --start-year 2000 \
+            --end-year 2025 \
+            --output artifacts/halftime_two_nil_validation.json \
+            > artifacts/halftime_two_nil_validation.log 2>&1
+          cat artifacts/halftime_two_nil_validation.log
+      - name: Run nested halftime state search
+        run: |
+          python scripts/run_halftime_state_search.py \
+            --cache-dir .cache/football-data-halftime \
+            --start-year 2000 \
+            --end-year 2025 \
+            --train-end-year 2011 \
+            --calibration-end-year 2017 \
+            --output artifacts/halftime_state_search.json \
+            > artifacts/halftime_state_search.log 2>&1
+          cat artifacts/halftime_state_search.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: statsbomb-elo-live-state
+          name: halftime-state-validation
           path: artifacts/
           retention-days: 14
