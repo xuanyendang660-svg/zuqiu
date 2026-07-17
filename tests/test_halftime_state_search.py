@@ -46,7 +46,7 @@ def test_nested_search_finds_calibrated_probability_state() -> None:
     rows += _rows(
         year=2006,
         count=200,
-        underdog_probability=0.38,
+        underdog_probability=0.34,
         final_scores=[(1, 1)] * 7 + [(2, 0)] * 3,
     )
     rows += _rows(
@@ -58,7 +58,7 @@ def test_nested_search_finds_calibrated_probability_state() -> None:
     rows += _rows(
         year=2016,
         count=60,
-        underdog_probability=0.38,
+        underdog_probability=0.34,
         final_scores=[(1, 1)] * 7 + [(2, 0)] * 3,
     )
     rows += _rows(
@@ -70,7 +70,7 @@ def test_nested_search_finds_calibrated_probability_state() -> None:
     rows += _rows(
         year=2021,
         count=40,
-        underdog_probability=0.38,
+        underdog_probability=0.34,
         final_scores=[(1, 1)] * 7 + [(2, 0)] * 3,
     )
     frame = pd.DataFrame(rows)
