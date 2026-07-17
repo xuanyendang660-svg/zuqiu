@@ -1,0 +1,36 @@
+home_lambda: 1.55
+away_lambda: 0.95
+max_goals: 7
+
+scenario_weights:
+  low_event: 0.10
+  normal: 0.48
+  home_control: 0.12
+  away_control: 0.04
+  shootout: 0.08
+  home_blowout: 0.15
+  away_blowout: 0.03
+
+market_targets:
+  home: 0.56
+  draw: 0.25
+  away: 0.19
+  over_2_5: 0.54
+  btts: 0.49
+
+licenses:
+  home_first: 1.10
+  home_second: 1.04
+  home_third_plus: 1.12
+  away_first: 0.92
+  away_second: 0.82
+  away_third_plus: 0.75
+  draw_stop: 0.96
+  home_lead_stop: 1.04
+  away_lead_stop: 0.95
+
+market_cluster:
+  - [1, 0]
+  - [2, 0]
+  - [2, 1]
+  - [1, 1]
