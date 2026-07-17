@@ -4,13 +4,13 @@ import json
 from pathlib import Path
 
 from .live_snapshots import LiveSnapshotDataset, _absolute_minute
+from .strict_side_resolution import resolve_wyscout_sides_strict
 from .wyscout_events import (
     WyscoutIndexRecord,
     _GOAL_TAG,
     _OWN_GOAL_TAG,
     _event_tags,
     _payload_events,
-    resolve_wyscout_sides,
 )
 
 
@@ -73,7 +73,7 @@ def repair_live_score_integrity(
     records = {record.match_id: record for record in index_records}
     resolved_side_map = side_map or {
         item.index.match_id: (item.home_team_id, item.away_team_id)
-        for item in resolve_wyscout_sides(index_records)
+        for item in resolve_wyscout_sides_strict(index_records)
     }
     corrections: dict[tuple[int, int], tuple[int, int]] = {}
     failures: list[str] = []
