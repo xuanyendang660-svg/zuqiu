@@ -16,17 +16,9 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      - name: Run focused halftime search test
-        run: |
-          mkdir -p artifacts
-          set +e
-          pytest -q tests/test_halftime_state_search.py -vv \
-            > artifacts/halftime_state_test.log 2>&1
-          status=$?
-          cat artifacts/halftime_state_test.log
-          exit $status
       - name: Run full test suite
         run: |
+          mkdir -p artifacts
           set +e
           pytest > artifacts/full_test.log 2>&1
           status=$?
@@ -39,7 +31,7 @@ jobs:
           path: artifacts/
           retention-days: 7
 
-  halftime-state-validation:
+  halftime-final-method-audit:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -54,37 +46,20 @@ jobs:
         with:
           path: .cache/football-data-halftime
           key: football-data-halftime-2000-2026-v1
-      - name: Run halftime two-nil validation
+      - name: Run final frozen-rule production audit
         run: |
           mkdir -p artifacts
-          python scripts/run_halftime_two_nil_validation.py \
+          set +e
+          python scripts/run_halftime_final_method_audit.py \
             --cache-dir .cache/football-data-halftime \
-            --start-year 2000 \
-            --end-year 2025 \
-            --output artifacts/halftime_two_nil_validation.json \
-            > artifacts/halftime_two_nil_validation.log 2>&1
-          cat artifacts/halftime_two_nil_validation.log
-      - name: Run nested halftime state search
-        run: |
-          python scripts/run_halftime_state_search.py \
-            --cache-dir .cache/football-data-halftime \
-            --start-year 2000 \
-            --end-year 2025 \
-            --train-end-year 2011 \
-            --calibration-end-year 2017 \
-            --output artifacts/halftime_state_search.json \
-            > artifacts/halftime_state_search.log 2>&1
-          cat artifacts/halftime_state_search.log
-      - name: Run cross-tier and shadow validation
-        run: |
-          python scripts/run_halftime_transfer_validation.py \
-            --cache-dir .cache/football-data-halftime \
-            --output artifacts/halftime_transfer_validation.json \
-            > artifacts/halftime_transfer_validation.log 2>&1
-          cat artifacts/halftime_transfer_validation.log
+            --output artifacts/halftime_final_method_audit.json \
+            > artifacts/halftime_final_method_audit.log 2>&1
+          status=$?
+          cat artifacts/halftime_final_method_audit.log
+          exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: halftime-state-validation
+          name: halftime-final-method-audit
           path: artifacts/
-          retention-days: 14
+          retention-days: 30
