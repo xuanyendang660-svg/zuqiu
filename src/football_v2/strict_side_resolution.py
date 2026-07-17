@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from .wyscout_events import (
+    WyscoutIndexRecord,
+    WyscoutSideRecord,
+    _GOAL_TAG,
+    _OWN_GOAL_TAG,
+    _event_tags,
+    _payload_events,
+    _team_side_metadata,
+)
+
+
+def _team_ids(events: list[dict[str, object]]) -> tuple[int, ...]:
+    return tuple(
+        sorted(
+            {
+                int(event["teamId"])
+                for event in events
+                if event.get("teamId") is not None
+            }
+        )
+    )
+
+
+def _credited_goal_counts(
+    events: list[dict[str, object]],
+    team_ids: tuple[int, ...],
+) -> dict[int, int]:
+    counts = {team_id: 0 for team_id in team_ids}
+    if len(team_ids) != 2:
+        return counts
+    first, second = team_ids
+    for event in events:
+        team_value = event.get("teamId")
+        if team_value is None:
+            continue
+        team_id = int(team_value)
+        if team_id not in counts:
+            continue
+        tags = _event_tags(event)
+        own_goal = _OWN_GOAL_TAG in tags
+        if _GOAL_TAG not in tags and not own_goal:
+            continue
+        if own_goal:
+            scoring_team = second if team_id == first else first
+        else:
+            scoring_team = team_id
+        counts[scoring_team] += 1
+    return counts
+
+
+def _register_mapping(
+    record: WyscoutIndexRecord,
+    sides: tuple[int, int],
+    name_to_id: dict[str, int],
+    id_to_name: dict[int, str],
+) -> None:
+    home_id, away_id = sides
+    pairs = ((record.home_name, home_id), (record.away_name, away_id))
+    for name, team_id in pairs:
+        known_id = name_to_id.get(name)
+        known_name = id_to_name.get(team_id)
+        if known_id is not None and known_id != team_id:
+            raise RuntimeError(
+                f"team name {name!r} maps to both {known_id} and {team_id}"
+            )
+        if known_name is not None and known_name != name:
+            raise RuntimeError(
+                f"team id {team_id} maps to both {known_name!r} and {name!r}"
+            )
+        name_to_id[name] = team_id
+        id_to_name[team_id] = name
+
+
+def resolve_wyscout_sides_strict(
+    records: list[WyscoutIndexRecord],
+) -> list[WyscoutSideRecord]:
+    summaries: dict[
+        int,
+        tuple[tuple[int, ...], dict[int, int], tuple[int, int] | None],
+    ] = {}
+    resolved: dict[int, tuple[int, int]] = {}
+    name_to_id: dict[str, int] = {}
+    id_to_name: dict[int, str] = {}
+
+    for record in records:
+        payload = json.loads(Path(record.path).read_text(encoding="utf-8"))
+        events = _payload_events(payload)
+        team_ids = _team_ids(events)
+        counts = _credited_goal_counts(events, team_ids)
+        metadata_sides = _team_side_metadata(payload)
+        summaries[record.match_id] = (team_ids, counts, metadata_sides)
+
+        sides: tuple[int, int] | None = None
+        if metadata_sides is not None:
+            sides = (int(metadata_sides[0]), int(metadata_sides[1]))
+        elif len(team_ids) == 2:
+            first, second = team_ids
+            possibilities = [
+                (home_id, away_id)
+                for home_id, away_id in ((first, second), (second, first))
+                if counts.get(home_id, 0) == int(record.home_score)
+                and counts.get(away_id, 0) == int(record.away_score)
+            ]
+            if len(possibilities) == 1:
+                sides = possibilities[0]
+
+        if sides is not None:
+            resolved[record.match_id] = sides
+            _register_mapping(record, sides, name_to_id, id_to_name)
+
+    while True:
+        progress = False
+        for record in records:
+            if record.match_id in resolved:
+                continue
+            team_ids, _, _ = summaries[record.match_id]
+            if len(team_ids) != 2:
+                continue
+            first, second = team_ids
+            known_home = name_to_id.get(record.home_name)
+            known_away = name_to_id.get(record.away_name)
+            sides: tuple[int, int] | None = None
+            if known_home in team_ids and known_away in team_ids:
+                sides = (int(known_home), int(known_away))
+            elif known_home in team_ids:
+                away_id = second if first == known_home else first
+                sides = (int(known_home), int(away_id))
+            elif known_away in team_ids:
+                home_id = second if first == known_away else first
+                sides = (int(home_id), int(known_away))
+            else:
+                first_name = id_to_name.get(first)
+                second_name = id_to_name.get(second)
+                if first_name == record.home_name or second_name == record.away_name:
+                    sides = (first, second)
+                elif second_name == record.home_name or first_name == record.away_name:
+                    sides = (second, first)
+            if sides is None:
+                continue
+            resolved[record.match_id] = sides
+            _register_mapping(record, sides, name_to_id, id_to_name)
+            progress = True
+        if not progress:
+            break
+
+    unresolved = [record for record in records if record.match_id not in resolved]
+    if unresolved:
+        sample = "; ".join(
+            f"{record.match_id}:{record.home_name}-{record.away_name}"
+            for record in unresolved[:10]
+        )
+        raise RuntimeError(
+            f"strict side resolution left {len(unresolved)} matches unresolved: {sample}"
+        )
+
+    output: list[WyscoutSideRecord] = []
+    failures: list[str] = []
+    for record in records:
+        home_id, away_id = resolved[record.match_id]
+        team_ids, counts, _ = summaries[record.match_id]
+        if home_id not in team_ids or away_id not in team_ids:
+            failures.append(f"{record.match_id}: resolved IDs absent from events")
+            continue
+        actual = (counts.get(home_id, 0), counts.get(away_id, 0))
+        expected = (int(record.home_score), int(record.away_score))
+        if actual != expected:
+            failures.append(
+                f"{record.match_id}: credited score {actual[0]}-{actual[1]} "
+                f"!= index score {expected[0]}-{expected[1]}"
+            )
+            continue
+        output.append(WyscoutSideRecord(record, home_id, away_id))
+
+    if failures:
+        sample = "; ".join(failures[:10])
+        raise RuntimeError(
+            f"strict side resolution failed validation for {len(failures)} matches: {sample}"
+        )
+    return output
