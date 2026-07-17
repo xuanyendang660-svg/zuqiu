@@ -15,6 +15,8 @@ def _write_events(
 ) -> None:
     payload = [
         {
+            "eventId": 10,
+            "subEventId": 100,
             "teamId": team_id,
             "matchPeriod": "1H",
             "eventSec": index * 60,
