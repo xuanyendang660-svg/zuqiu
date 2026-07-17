@@ -14,11 +14,7 @@ class ScoreArchetype(StrEnum):
 
 
 def classify_score(home_goals: int, away_goals: int) -> ScoreArchetype:
-    """Classify a scoreline by its realised match shape.
-
-    Extreme tails are classified before ordinary totals so 6-1 and 1-5 are
-    treated as one-sided collapses rather than generic high-scoring matches.
-    """
+    """Classify a scoreline by its realised match shape."""
     if min(home_goals, away_goals) < 0:
         raise ValueError("goals cannot be negative")
 
@@ -38,6 +34,34 @@ def classify_score(home_goals: int, away_goals: int) -> ScoreArchetype:
     if total <= 1:
         return ScoreArchetype.LOW_EVENT
     return ScoreArchetype.NORMAL
+
+
+def is_jackpot_tail(home_goals: int, away_goals: int) -> bool:
+    """Rare pre-match tail used for jackpot-oriented alert tests.
+
+    Includes 4-0/0-4, 4-1/1-4, 5+ single-team scores and 3-3-type six-goal
+    shootouts, while excluding common open scores such as 3-2 and 2-3.
+    """
+    if min(home_goals, away_goals) < 0:
+        raise ValueError("goals cannot be negative")
+    total = home_goals + away_goals
+    margin = abs(home_goals - away_goals)
+    return (
+        total >= 6
+        or max(home_goals, away_goals) >= 5
+        or margin >= 4
+        or (total >= 5 and margin >= 3)
+    )
+
+
+def jackpot_tail_type(home_goals: int, away_goals: int) -> ScoreArchetype:
+    if not is_jackpot_tail(home_goals, away_goals):
+        return ScoreArchetype.NORMAL
+    if home_goals - away_goals >= 3:
+        return ScoreArchetype.HOME_BLOWOUT
+    if away_goals - home_goals >= 3:
+        return ScoreArchetype.AWAY_BLOWOUT
+    return ScoreArchetype.SHOOTOUT
 
 
 def score_to_label(home_goals: int, away_goals: int) -> str:
