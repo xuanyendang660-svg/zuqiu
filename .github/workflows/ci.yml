@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "model/**"]
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - name: Run full test suite
+        run: |
+          mkdir -p artifacts
+          set +e
+          pytest > artifacts/full_test.log 2>&1
+          status=$?
+          cat artifacts/full_test.log
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-diagnostics
+          path: artifacts/
+          retention-days: 7
+
+  halftime-topflight-domain-audit:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/football-data-halftime
+          key: football-data-halftime-2000-2026-v1
+      - name: Run independent historical top-flight blind audit
+        run: |
+          mkdir -p artifacts
+          set +e
+          python scripts/run_halftime_topflight_domain_audit.py \
+            --cache-dir .cache/football-data-halftime \
+            --output artifacts/halftime_topflight_domain_audit.json \
+            > artifacts/halftime_topflight_domain_audit.log 2>&1
+          status=$?
+          cat artifacts/halftime_topflight_domain_audit.log
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: halftime-topflight-domain-audit
+          path: artifacts/
+          retention-days: 30

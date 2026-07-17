@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "football-data-model"
+version = "0.2.0"
+description = "Data-driven exact-score, upset and tail-event football modelling."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "joblib>=1.4",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "scikit-learn>=1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+football-v2 = "football_v2.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/football_v2"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"src/football_v2/live_remaining_goals.py" = ["F401"]
