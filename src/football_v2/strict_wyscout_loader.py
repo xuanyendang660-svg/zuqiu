@@ -15,7 +15,7 @@ def load_wyscout_league_matches_strict(
     max_matches: int | None = None,
 ) -> list[EventMatch]:
     records = load_wyscout_index(repository_root)
-    sides = resolve_wyscout_sides_strict(records)
+    sides = resolve_wyscout_sides_strict(records, drop_invalid=True)
     if max_matches is not None:
         sides = sides[:max_matches]
 
