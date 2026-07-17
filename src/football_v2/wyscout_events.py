@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
+import json
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
@@ -10,211 +13,345 @@ from .labels import jackpot_tail_type, is_jackpot_tail
 from .statsbomb_events import EventDataset, EventMatch, TeamEventSummary, build_event_dataset
 
 
-def _numeric_id(value: object) -> int:
-    try:
-        return int(str(value))
-    except (TypeError, ValueError):
-        return abs(hash(str(value))) % 2_000_000_000
+@dataclass(frozen=True)
+class WyscoutIndexRecord:
+    match_id: int
+    path: Path
+    date: pd.Timestamp
+    source: str
+    home_name: str
+    away_name: str
+    home_score: int
+    away_score: int
 
 
-def _formation_number(value: object) -> int:
-    digits = "".join(character for character in str(value or "") if character.isdigit())
-    return int(digits[:5]) if digits else 0
+@dataclass(frozen=True)
+class WyscoutSideRecord:
+    index: WyscoutIndexRecord
+    home_team_id: int
+    away_team_id: int
 
 
-def _shot_quality(x: float, y: float, body_part: str) -> float:
-    if not np.isfinite(x) or not np.isfinite(y):
-        return 0.06
-    distance = float(np.hypot(1.0 - x, 0.70 * (y - 0.50)))
-    logit = -1.55 - 7.2 * distance
-    if "HEAD" in body_part.upper():
-        logit -= 0.35
+_INDEX_PATTERN = re.compile(
+    r"^\|\[(?P<id>\d+)\]\(files/\d+\.json\)\|"
+    r"(?P<home>.*?) - (?P<away>.*?), (?P<hg>\d+) - (?P<ag>\d+)"
+    r"(?: \([A-Z]\))?\|(?P<date>.*?)\|(?P<source>.*?)\|$"
+)
+_ALLOWED_SOURCES = {
+    "matches_England.json",
+    "matches_France.json",
+    "matches_Germany.json",
+    "matches_Italy.json",
+    "matches_Spain.json",
+}
+_GOAL_TAG = 101
+_OWN_GOAL_TAG = 102
+_ACCURATE_TAG = 1801
+_RED_CARD_TAGS = {1701, 1703}
+_YELLOW_CARD_TAG = 1702
+
+
+def _parse_date(value: str) -> pd.Timestamp:
+    cleaned = re.sub(r"\s+GMT[+-]\d+(?::\d+)?$", "", value.strip())
+    cleaned = cleaned.replace(" at ", " ")
+    return pd.Timestamp(pd.to_datetime(cleaned, errors="raise")).tz_localize(None)
+
+
+def load_wyscout_index(repository_root: str | Path) -> list[WyscoutIndexRecord]:
+    processed = Path(repository_root) / "processed"
+    records: list[WyscoutIndexRecord] = []
+    for line in (processed / "README.md").read_text(encoding="utf-8").splitlines():
+        match = _INDEX_PATTERN.match(line.strip())
+        if match is None or match.group("source") not in _ALLOWED_SOURCES:
+            continue
+        match_id = int(match.group("id"))
+        records.append(
+            WyscoutIndexRecord(
+                match_id=match_id,
+                path=processed / "files" / f"{match_id}.json",
+                date=_parse_date(match.group("date")),
+                source=match.group("source"),
+                home_name=match.group("home").strip(),
+                away_name=match.group("away").strip(),
+                home_score=int(match.group("hg")),
+                away_score=int(match.group("ag")),
+            )
+        )
+    records.sort(key=lambda item: (item.date, item.match_id))
+    if len(records) < 1800:
+        raise RuntimeError(f"expected full top-five leagues; found {len(records)} matches")
+    return records
+
+
+def _event_tags(event: dict[str, object]) -> set[int]:
+    return {
+        int(tag["id"])
+        for tag in event.get("tags", [])
+        if isinstance(tag, dict) and tag.get("id") is not None
+    }
+
+
+def _payload_events(payload: object) -> list[dict[str, object]]:
+    if isinstance(payload, dict):
+        events = payload.get("events")
+    else:
+        events = payload
+    if not isinstance(events, list):
+        raise ValueError("Wyscout payload does not contain an event list")
+    return [event for event in events if isinstance(event, dict)]
+
+
+def _team_side_metadata(payload: object) -> tuple[int, int] | None:
+    if not isinstance(payload, dict):
+        return None
+    candidates: list[object] = [payload.get("teamsData"), payload.get("teams")]
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        candidates.extend([metadata.get("teamsData"), metadata.get("teams")])
+    match = payload.get("match")
+    if isinstance(match, dict):
+        candidates.extend([match.get("teamsData"), match.get("teams")])
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            home_id: int | None = None
+            away_id: int | None = None
+            for key, value in candidate.items():
+                if not isinstance(value, dict):
+                    continue
+                side = str(value.get("side") or value.get("role") or "").lower()
+                team_id = int(value.get("teamId") or value.get("id") or key)
+                if side == "home":
+                    home_id = team_id
+                elif side == "away":
+                    away_id = team_id
+            if home_id is not None and away_id is not None:
+                return home_id, away_id
+        elif isinstance(candidate, list):
+            home_id = away_id = None
+            for value in candidate:
+                if not isinstance(value, dict):
+                    continue
+                side = str(value.get("side") or value.get("role") or "").lower()
+                team_id = int(value.get("teamId") or value.get("id"))
+                if side == "home":
+                    home_id = team_id
+                elif side == "away":
+                    away_id = team_id
+            if home_id is not None and away_id is not None:
+                return home_id, away_id
+    return None
+
+
+def _goal_counts(events: list[dict[str, object]]) -> tuple[dict[int, int], set[int]]:
+    counts: dict[int, int] = {}
+    team_ids: set[int] = set()
+    for event in events:
+        if event.get("teamId") is None:
+            continue
+        team_id = int(event["teamId"])
+        team_ids.add(team_id)
+        tags = _event_tags(event)
+        if _GOAL_TAG in tags and _OWN_GOAL_TAG not in tags:
+            counts[team_id] = counts.get(team_id, 0) + 1
+    return counts, team_ids
+
+
+def resolve_wyscout_sides(records: list[WyscoutIndexRecord]) -> list[WyscoutSideRecord]:
+    summaries: dict[int, tuple[tuple[int, ...], dict[int, int], tuple[int, int] | None]] = {}
+    team_name_to_id: dict[str, int] = {}
+    team_id_to_name: dict[int, str] = {}
+    resolved: dict[int, tuple[int, int]] = {}
+
+    for record in records:
+        payload = json.loads(record.path.read_text(encoding="utf-8"))
+        events = _payload_events(payload)
+        counts, team_ids = _goal_counts(events)
+        metadata_sides = _team_side_metadata(payload)
+        summaries[record.match_id] = (tuple(sorted(team_ids)), counts, metadata_sides)
+        if metadata_sides is not None:
+            resolved[record.match_id] = metadata_sides
+            team_id_to_name[metadata_sides[0]] = record.home_name
+            team_id_to_name[metadata_sides[1]] = record.away_name
+            team_name_to_id[record.home_name] = metadata_sides[0]
+            team_name_to_id[record.away_name] = metadata_sides[1]
+            continue
+        if len(team_ids) != 2:
+            continue
+        first, second = sorted(team_ids)
+        possibilities = []
+        for home_id, away_id in ((first, second), (second, first)):
+            if (
+                counts.get(home_id, 0) == record.home_score
+                and counts.get(away_id, 0) == record.away_score
+            ):
+                possibilities.append((home_id, away_id))
+        if len(possibilities) == 1:
+            home_id, away_id = possibilities[0]
+            resolved[record.match_id] = (home_id, away_id)
+            team_id_to_name[home_id] = record.home_name
+            team_id_to_name[away_id] = record.away_name
+            team_name_to_id[record.home_name] = home_id
+            team_name_to_id[record.away_name] = away_id
+
+    for _ in range(4):
+        progress = False
+        for record in records:
+            if record.match_id in resolved:
+                continue
+            team_ids, _, _ = summaries[record.match_id]
+            if len(team_ids) != 2:
+                continue
+            known_home = team_name_to_id.get(record.home_name)
+            known_away = team_name_to_id.get(record.away_name)
+            if known_home in team_ids and known_away in team_ids:
+                resolved[record.match_id] = (int(known_home), int(known_away))
+                progress = True
+            elif known_home in team_ids:
+                away_id = next(team_id for team_id in team_ids if team_id != known_home)
+                resolved[record.match_id] = (int(known_home), away_id)
+                team_name_to_id[record.away_name] = away_id
+                team_id_to_name[away_id] = record.away_name
+                progress = True
+            elif known_away in team_ids:
+                home_id = next(team_id for team_id in team_ids if team_id != known_away)
+                resolved[record.match_id] = (home_id, int(known_away))
+                team_name_to_id[record.home_name] = home_id
+                team_id_to_name[home_id] = record.home_name
+                progress = True
+        if not progress:
+            break
+
+    output: list[WyscoutSideRecord] = []
+    for record in records:
+        team_ids, _, metadata_sides = summaries[record.match_id]
+        sides = resolved.get(record.match_id) or metadata_sides
+        if sides is None:
+            if len(team_ids) != 2:
+                continue
+            sides = (team_ids[0], team_ids[1])
+        output.append(WyscoutSideRecord(record, int(sides[0]), int(sides[1])))
+    if len(output) < 1800:
+        raise RuntimeError(f"resolved sides for only {len(output)} matches")
+    return output
+
+
+def _shot_quality(x: float, y: float, header: bool) -> float:
+    distance = float(np.hypot(100.0 - x, 0.70 * (y - 50.0))) / 100.0
+    logit = -1.45 - 7.0 * distance - (0.35 if header else 0.0)
     return float(1.0 / (1.0 + np.exp(-logit)))
 
 
-def _as_text(value: object) -> str:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return ""
-    return str(value).upper()
+def _first_eleven(events: list[dict[str, object]], team_id: int) -> frozenset[int]:
+    players: list[int] = []
+    for event in events:
+        if int(event.get("teamId") or -1) != team_id:
+            continue
+        player_id = int(event.get("playerId") or 0)
+        if player_id > 0 and player_id not in players:
+            players.append(player_id)
+            if len(players) == 11:
+                break
+    return frozenset(players)
 
 
-def _time_minutes(value: object) -> int:
-    if value is None:
-        return 0
-    try:
-        return int(pd.Timedelta(value).total_seconds() // 60)
-    except (TypeError, ValueError):
-        return 0
-
-
-def parse_wyscout_file(path: str | Path) -> EventMatch:
-    try:
-        from kloppy import wyscout
-    except ImportError as exc:  # pragma: no cover - integration dependency
-        raise RuntimeError("install kloppy to parse Wyscout event files") from exc
-
-    dataset = wyscout.load(event_data=str(path), coordinates="wyscout")
-    metadata = dataset.metadata
-    if metadata.score is None or metadata.date is None or len(metadata.teams) != 2:
-        raise ValueError(f"missing Wyscout metadata in {path}")
-    home_team, away_team = metadata.teams
-    home_id = _numeric_id(home_team.team_id)
-    away_id = _numeric_id(away_team.team_id)
+def parse_wyscout_file(record: WyscoutSideRecord) -> EventMatch:
+    payload = json.loads(record.index.path.read_text(encoding="utf-8"))
+    events = _payload_events(payload)
     summaries = {
-        home_id: TeamEventSummary(home_id, str(home_team.name)),
-        away_id: TeamEventSummary(away_id, str(away_team.name)),
+        record.home_team_id: TeamEventSummary(
+            record.home_team_id, record.index.home_name
+        ),
+        record.away_team_id: TeamEventSummary(
+            record.away_team_id, record.index.away_name
+        ),
     }
-    summaries[home_id].starting_xi = frozenset(
-        _numeric_id(player.player_id) for player in home_team.players if player.starting
+    summaries[record.home_team_id].starting_xi = _first_eleven(
+        events, record.home_team_id
     )
-    summaries[away_id].starting_xi = frozenset(
-        _numeric_id(player.player_id) for player in away_team.players if player.starting
+    summaries[record.away_team_id].starting_xi = _first_eleven(
+        events, record.away_team_id
     )
-    summaries[home_id].formation = _formation_number(home_team.starting_formation)
-    summaries[away_id].formation = _formation_number(away_team.starting_formation)
-
-    frame = dataset.to_df()
     previous_team: int | None = None
     previous_second = -10_000.0
-    for row in frame.itertuples(index=False):
-        row_dict = row._asdict()
-        team_value = row_dict.get("team_id")
-        if team_value is None:
+
+    for event in events:
+        if event.get("teamId") is None:
             continue
-        team_id = _numeric_id(team_value)
+        team_id = int(event["teamId"])
         if team_id not in summaries:
             continue
         summary = summaries[team_id]
-        event_type = _as_text(row_dict.get("event_type"))
-        result = _as_text(row_dict.get("result"))
-        success = (
-            bool(row_dict.get("success"))
-            if row_dict.get("success") is not None
-            else False
+        event_name = str(event.get("eventName") or "")
+        sub_event = str(event.get("subEventName") or "")
+        tags = _event_tags(event)
+        positions = event.get("positions") or []
+        start = positions[0] if positions and isinstance(positions[0], dict) else {}
+        end = positions[-1] if positions and isinstance(positions[-1], dict) else start
+        x = float(start.get("x") or 0.0)
+        y = float(start.get("y") or 50.0)
+        end_x = float(end.get("x") or x)
+        end_y = float(end.get("y") or y)
+        period = str(event.get("matchPeriod") or "1H")
+        event_second = float(event.get("eventSec") or 0.0)
+        absolute_second = event_second + (45 * 60 if period == "2H" else 0)
+        goal = _GOAL_TAG in tags
+        accurate = _ACCURATE_TAG in tags
+        quick_transition = (
+            previous_team is not None
+            and previous_team != team_id
+            and absolute_second - previous_second <= 12.0
         )
-        x = (
-            float(row_dict.get("coordinates_x"))
-            if pd.notna(row_dict.get("coordinates_x"))
-            else np.nan
-        )
-        y = (
-            float(row_dict.get("coordinates_y"))
-            if pd.notna(row_dict.get("coordinates_y"))
-            else np.nan
-        )
-        end_x = (
-            float(row_dict.get("end_coordinates_x"))
-            if pd.notna(row_dict.get("end_coordinates_x"))
-            else np.nan
-        )
-        end_y = (
-            float(row_dict.get("end_coordinates_y"))
-            if pd.notna(row_dict.get("end_coordinates_y"))
-            else np.nan
-        )
-        timestamp = row_dict.get("timestamp")
-        second = (
-            float(pd.Timedelta(timestamp).total_seconds())
-            if timestamp is not None
-            else 0.0
-        )
-        body_part = _as_text(row_dict.get("body_part_type"))
-        set_piece = _as_text(row_dict.get("set_piece_type"))
-        counter = bool(row_dict.get("is_counter_attack"))
-        possession_flip = previous_team is not None and previous_team != team_id
-        quick_transition = possession_flip and second - previous_second <= 12.0
+        is_shot = event_name == "Shot" or sub_event == "Penalty"
 
-        if event_type == "SHOT":
-            xg = _shot_quality(x, y, body_part)
+        if is_shot:
+            xg = _shot_quality(x, y, 403 in tags)
             summary.xg += xg
             summary.shots += 1
-            summary.shots_on_target += int(
-                result in {"GOAL", "SAVED", "SAVED_TO_POST"}
-            )
+            summary.shots_on_target += int(goal or accurate)
             summary.big_chances += int(xg >= 0.18)
-            summary.counter_xg += xg if counter or quick_transition else 0.0
-            summary.set_piece_xg += xg if set_piece else 0.0
-            if result == "GOAL":
-                summary.goal_minutes.append(_time_minutes(timestamp))
-        if event_type == "PASS":
+            summary.counter_xg += xg if quick_transition else 0.0
+            summary.set_piece_xg += xg if event_name == "Free Kick" else 0.0
+            if goal:
+                summary.goal_minutes.append(int(absolute_second // 60))
+        if event_name == "Pass":
             summary.passes += 1
-            summary.completed_passes += int(
-                success or result in {"COMPLETE", "SUCCESS"}
-            )
-        if event_type in {"DUEL", "INTERCEPTION", "RECOVERY", "TACKLE"}:
+            summary.completed_passes += int(accurate)
+        if event_name in {"Duel", "Others on the ball"}:
             summary.pressures += 1
-        if (
-            event_type in {"INTERCEPTION", "RECOVERY", "TACKLE"}
-            and np.isfinite(x)
-            and x >= 0.67
-        ):
+        if event_name in {"Duel", "Others on the ball"} and accurate and x >= 67:
             summary.high_recoveries += 1
-        if (event_type == "PASS" and not success) or event_type in {
-            "MISCONTROL",
-            "DISPOSSESSED",
-        }:
+        if (event_name == "Pass" and not accurate) or 1302 in tags:
             summary.turnovers += 1
-        if event_type in {"FOUL", "FOUL_COMMITTED"}:
+        if event_name == "Foul":
             summary.fouls += 1
-        if _as_text(row_dict.get("card_type")):
+        if tags & (_RED_CARD_TAGS | {_YELLOW_CARD_TAG}):
             summary.cards += 1
-        if np.isfinite(x) and np.isfinite(end_x):
-            summary.progressive_actions += int(end_x - x >= 0.20)
-            summary.final_third_entries += int(x < 0.67 <= end_x)
-            start_box = (
-                x >= 0.85 and 0.20 <= y <= 0.80 if np.isfinite(y) else False
-            )
-            end_box = (
-                end_x >= 0.85 and 0.20 <= end_y <= 0.80
-                if np.isfinite(end_y)
-                else False
-            )
-            summary.box_entries += int(not start_box and end_box)
-
+        summary.progressive_actions += int(end_x - x >= 20)
+        summary.final_third_entries += int(x < 67 <= end_x)
+        start_box = x >= 85 and 20 <= y <= 80
+        end_box = end_x >= 85 and 20 <= end_y <= 80
+        summary.box_entries += int(not start_box and end_box)
         previous_team = team_id
-        previous_second = second
+        previous_second = absolute_second
 
-    home_score = int(metadata.score.home)
-    away_score = int(metadata.score.away)
-    summaries[home_id].goals = home_score
-    summaries[away_id].goals = away_score
-    game_id = _numeric_id(metadata.game_id or Path(path).stem)
-    attributes = metadata.attributes or {}
-    competition = attributes.get("competition_id") or attributes.get("competition") or 0
-    season = attributes.get("season_id") or attributes.get("season") or 0
+    home = summaries[record.home_team_id]
+    away = summaries[record.away_team_id]
+    home.goals = record.index.home_score
+    away.goals = record.index.away_score
     return EventMatch(
-        match_id=game_id,
-        date=pd.Timestamp(metadata.date).tz_localize(None),
-        competition_id=_numeric_id(competition),
-        season_id=_numeric_id(season),
-        home_team_id=home_id,
-        home_team_name=str(home_team.name),
-        away_team_id=away_id,
-        away_team_name=str(away_team.name),
-        home_score=home_score,
-        away_score=away_score,
-        home=summaries[home_id],
-        away=summaries[away_id],
+        match_id=record.index.match_id,
+        date=record.index.date,
+        competition_id=abs(hash(record.index.source)) % 1_000_000,
+        season_id=201718,
+        home_team_id=record.home_team_id,
+        home_team_name=record.index.home_name,
+        away_team_id=record.away_team_id,
+        away_team_name=record.index.away_name,
+        home_score=record.index.home_score,
+        away_score=record.index.away_score,
+        home=home,
+        away=away,
     )
-
-
-def _league_file_ids(index_path: Path) -> list[str]:
-    allowed = {
-        "matches_England.json",
-        "matches_France.json",
-        "matches_Germany.json",
-        "matches_Italy.json",
-        "matches_Spain.json",
-    }
-    ids: list[str] = []
-    for line in index_path.read_text(encoding="utf-8").splitlines():
-        if not any(source in line for source in allowed):
-            continue
-        marker = line.split("]", maxsplit=1)[0]
-        match_id = "".join(character for character in marker if character.isdigit())
-        if match_id:
-            ids.append(match_id)
-    return ids
 
 
 def load_wyscout_league_matches(
@@ -223,24 +360,21 @@ def load_wyscout_league_matches(
     workers: int = 8,
     max_matches: int | None = None,
 ) -> list[EventMatch]:
-    root = Path(repository_root)
-    processed = root / "processed"
-    index = processed / "README.md"
-    file_ids = _league_file_ids(index)
+    records = load_wyscout_index(repository_root)
+    sides = resolve_wyscout_sides(records)
     if max_matches is not None:
-        file_ids = file_ids[:max_matches]
-    paths = [processed / "files" / f"{match_id}.json" for match_id in file_ids]
+        sides = sides[:max_matches]
     matches: list[EventMatch] = []
     failures: list[str] = []
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        futures = {executor.submit(parse_wyscout_file, path): path for path in paths}
+        futures = {executor.submit(parse_wyscout_file, record): record for record in sides}
         for future in as_completed(futures):
-            path = futures[future]
+            record = futures[future]
             try:
                 matches.append(future.result())
             except Exception as exc:  # pragma: no cover - integration diagnostics
-                failures.append(f"{path.name}: {exc}")
-    if len(matches) < 1000:
+                failures.append(f"{record.index.path.name}: {exc}")
+    if len(matches) < 1700:
         sample = "; ".join(failures[:5])
         raise RuntimeError(f"only parsed {len(matches)} Wyscout matches; {sample}")
     matches.sort(key=lambda match: (match.date, match.match_id))
