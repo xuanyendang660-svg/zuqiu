@@ -6,12 +6,10 @@ from typing import Any
 
 import joblib
 
-from .model import TailAwareExactScoreModel
-
 
 @dataclass(frozen=True)
 class ModelBundle:
-    model: TailAwareExactScoreModel
+    model: Any
     feature_columns: tuple[str, ...]
     metadata: dict[str, Any]
 
