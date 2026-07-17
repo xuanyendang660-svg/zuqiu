@@ -22,11 +22,12 @@ def _selections(value: str) -> list[CompetitionSeason]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="StatsBomb event-tail backtest")
-    parser.add_argument("--selections", default="11:4,11:42,11:90")
+    parser.add_argument("--selections", default="9:27,9:281")
     parser.add_argument("--cache-dir", default=".cache/statsbomb")
-    parser.add_argument("--workers", type=int, default=16)
-    parser.add_argument("--max-matches", type=int, default=900)
+    parser.add_argument("--workers", type=int, default=10)
+    parser.add_argument("--max-matches", type=int, default=650)
     parser.add_argument("--folds", type=int, default=2)
+    parser.add_argument("--initial-train-fraction", type=float, default=0.60)
     parser.add_argument("--output", default="artifacts/statsbomb_event_tail.json")
     args = parser.parse_args()
 
@@ -40,7 +41,7 @@ def main() -> None:
     report = walk_forward_event_tail_test(
         dataset,
         folds=args.folds,
-        initial_train_fraction=0.55,
+        initial_train_fraction=args.initial_train_fraction,
         config=EventTailConfig(),
     )
     payload = report.to_dict()
@@ -54,7 +55,10 @@ def main() -> None:
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    output.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
