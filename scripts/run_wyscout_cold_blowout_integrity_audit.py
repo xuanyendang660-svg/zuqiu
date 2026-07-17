@@ -10,10 +10,10 @@ from football_v2.live_snapshots import build_live_snapshot_dataset
 from football_v2.market_event_data import load_market_1718
 from football_v2.strict_live_snapshots import build_strict_live_snapshot_dataset
 from football_v2.strict_market_join import join_market_events_without_score
+from football_v2.strict_wyscout_loader import load_wyscout_league_matches_strict
 from football_v2.wyscout_events import (
     build_wyscout_event_dataset,
     load_wyscout_index,
-    load_wyscout_league_matches,
 )
 from run_wyscout_cold_blowout_state_audit import _cutoff_report
 from run_wyscout_cold_blowout_strict_audit import _json_default, _normalise
@@ -33,7 +33,10 @@ def main() -> None:
 
     cutoffs = (15, 30, 45, 60)
     records = _normalise(load_wyscout_index(args.data_root))
-    matches = load_wyscout_league_matches(args.data_root, workers=args.workers)
+    matches = load_wyscout_league_matches_strict(
+        args.data_root,
+        workers=args.workers,
+    )
     event_dataset = build_wyscout_event_dataset(matches)
     market_event_dataset = join_market_events_without_score(
         event_dataset,
@@ -59,9 +62,13 @@ def main() -> None:
     strict_frame = strict_live.frame.sort_values(
         ["match_id", "snapshot_minute"]
     ).reset_index(drop=True)
-    if list(raw_frame[["match_id", "snapshot_minute"]].itertuples(index=False)) != list(
+    raw_keys = list(
+        raw_frame[["match_id", "snapshot_minute"]].itertuples(index=False)
+    )
+    strict_keys = list(
         strict_frame[["match_id", "snapshot_minute"]].itertuples(index=False)
-    ):
+    )
+    if raw_keys != strict_keys:
         raise RuntimeError("raw and strict live snapshots do not align")
 
     raw_home = raw_frame["live_home_score"].to_numpy(dtype=int)
@@ -83,6 +90,7 @@ def main() -> None:
             "matches": int(strict_frame["match_id"].nunique()),
             "snapshots": len(strict_frame),
             "market_join_uses_final_score": False,
+            "rolling_features_use_strict_sides": True,
             "cutoffs": list(cutoffs),
         },
         "integrity": {
@@ -95,6 +103,7 @@ def main() -> None:
             "event_final_score_verified_for_every_match": True,
             "strict_side_resolution_used": True,
             "own_goals_credited_to_opponent": True,
+            "goalkeeper_save_events_excluded_from_score": True,
         },
         "cutoffs": [
             _cutoff_report(strict_frame, cutoff)
