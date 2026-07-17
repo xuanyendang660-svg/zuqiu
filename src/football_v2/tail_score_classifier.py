@@ -6,13 +6,14 @@ import numpy as np
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.impute import SimpleImputer
 
-from .labels import score_to_label, label_to_score
+from .labels import label_to_score, score_to_label
 
 
 @dataclass
 class TailExactScoreModel:
     max_goals: int = 7
     random_state: int = 42
+    n_estimators: int = 160
 
     def fit(
         self,
@@ -35,7 +36,7 @@ class TailExactScoreModel:
         )
         x = self.imputer.fit_transform(raw)
         self.classifier = ExtraTreesClassifier(
-            n_estimators=600,
+            n_estimators=self.n_estimators,
             min_samples_leaf=1,
             max_features="sqrt",
             class_weight="balanced",
