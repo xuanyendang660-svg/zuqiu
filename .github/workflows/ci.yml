@@ -18,10 +18,10 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  goal-pairing-audit:
+  live-score-integrity-audit:
     needs: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +31,9 @@ jobs:
       - run: pip install -e ".[dev]"
       - uses: actions/cache@v4
         with:
-          path: .cache/wyscout-repo
+          path: |
+            .cache/wyscout-repo
+            .cache/football-data
           key: wyscout-live-dynamic-v1
       - name: Clone public Wyscout events
         run: |
@@ -41,17 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Audit goalkeeper-primary goal pairing gaps
+      - name: Run repaired live-score integrity audit
         run: |
           mkdir -p artifacts
-          python scripts/run_wyscout_goal_pairing_audit.py \
+          set +e
+          python scripts/run_wyscout_cold_blowout_integrity_audit.py \
             --data-root .cache/wyscout-repo \
-            --output artifacts/wyscout_goal_pairing_audit.json \
-            > artifacts/wyscout_goal_pairing_audit.log 2>&1
-          cat artifacts/wyscout_goal_pairing_audit.log
+            --workers 8 \
+            --output artifacts/wyscout_cold_blowout_integrity_audit.json \
+            > artifacts/wyscout_cold_blowout_integrity_audit.log 2>&1
+          status=$?
+          cat artifacts/wyscout_cold_blowout_integrity_audit.log
+          exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-goal-pairing-audit
+          name: wyscout-cold-blowout-integrity-audit
           path: artifacts/
           retention-days: 14
