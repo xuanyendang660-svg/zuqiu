@@ -39,36 +39,42 @@ def _cyclic_data() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return np.vstack(features), np.array(home), np.array(away)
 
 
+def _config(seed: int, trees: int) -> ResidualConfig:
+    return ResidualConfig(
+        n_estimators=trees,
+        min_samples_leaf=1,
+        random_state=seed,
+        calibration_fraction=0.20,
+        maximum_override_rate=0.25,
+        minimum_lift=1.10,
+    )
+
+
 def test_residual_can_override_market_two_one_with_one_five() -> None:
     features, home, away = _cyclic_data()
     base = _market_base(len(features))
-    model = MarketResidualScoreModel(
-        ResidualConfig(
-            n_estimators=120,
-            min_samples_leaf=1,
-            random_state=23,
-            calibration_fraction=0.20,
-        )
-    ).fit(features, home, away, base)
+    model = MarketResidualScoreModel(_config(23, 120)).fit(features, home, away, base)
 
     query = np.array([[0, 0, 1, 0, 0, 0]], dtype=float)
     distribution = model.predict_distribution(query, _market_base(1))[0]
-    predicted = tuple(int(value) for value in np.unravel_index(np.argmax(distribution), distribution.shape))
+    predicted = tuple(
+        int(value) for value in np.unravel_index(np.argmax(distribution), distribution.shape)
+    )
 
     assert predicted == (1, 5)
     assert distribution[1, 5] > distribution[2, 1]
     assert model.selection_.alpha > 0 or model.selection_.beta > 0
+    assert model.selection_.calibration_alert_metrics.lift is not None
+    assert model.selection_.calibration_alert_metrics.lift > 1.0
 
 
 def test_residual_calibration_keeps_market_guardrails() -> None:
     features, home, away = _cyclic_data()
     base = _market_base(len(features))
-    model = MarketResidualScoreModel(
-        ResidualConfig(n_estimators=100, min_samples_leaf=1, random_state=29)
-    ).fit(features, home, away, base)
+    model = MarketResidualScoreModel(_config(29, 100)).fit(features, home, away, base)
     selected = model.selection_.calibration_metrics
     market = model.selection_.calibration_market_metrics
 
-    assert selected.exact_accuracy >= market.exact_accuracy - 0.004
-    assert selected.top_k_accuracy >= market.top_k_accuracy - 0.010
-    assert selected.negative_log_likelihood <= market.negative_log_likelihood + 0.030
+    assert selected.exact_accuracy >= market.exact_accuracy - 0.001
+    assert selected.top_k_accuracy >= market.top_k_accuracy - 0.003
+    assert selected.negative_log_likelihood <= market.negative_log_likelihood + 0.005
