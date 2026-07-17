@@ -9,6 +9,7 @@ description = "Data-driven exact-score, upset and tail-event football modelling.
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "joblib>=1.4",
   "numpy>=1.26",
   "pandas>=2.2",
   "scikit-learn>=1.5",
@@ -19,6 +20,12 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.6",
 ]
+realdata = [
+  "premier-league-data @ git+https://github.com/AnishKhetani/premier-league-data.git",
+]
+
+[project.scripts]
+football-v2 = "football_v2.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/football_v2"]
