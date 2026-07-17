@@ -18,10 +18,10 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  wyscout-live-dynamic-backtest:
+  wyscout-mechanism-backtest:
     needs: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,21 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run 15 30 45 minute cross-league dynamic test
+      - name: Run cross-league upset mechanism test
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_live_backtest.py \
+          python scripts/run_wyscout_mechanism_backtest.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --output artifacts/wyscout_live_tail.json \
-            > artifacts/wyscout_live_run.log 2>&1
+            --output artifacts/wyscout_mechanism_tail.json \
+            > artifacts/wyscout_mechanism_run.log 2>&1
           status=$?
-          cat artifacts/wyscout_live_run.log
+          cat artifacts/wyscout_mechanism_run.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-live-dynamic-report
+          name: wyscout-mechanism-report
           path: artifacts/
           retention-days: 14
