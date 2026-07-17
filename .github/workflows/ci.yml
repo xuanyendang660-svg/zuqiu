@@ -18,10 +18,10 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  remaining-goals-backtest:
+  alert-score-backtest:
     needs: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,21 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run conditional remaining-goals exact-score test
+      - name: Run live alert plus conditional exact-score test
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_remaining_goals.py \
+          python scripts/run_wyscout_alert_score_system.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --output artifacts/wyscout_remaining_goals.json \
-            > artifacts/wyscout_remaining_goals.log 2>&1
+            --output artifacts/wyscout_alert_score.json \
+            > artifacts/wyscout_alert_score.log 2>&1
           status=$?
-          cat artifacts/wyscout_remaining_goals.log
+          cat artifacts/wyscout_alert_score.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-remaining-goals-report
+          name: wyscout-alert-score-report
           path: artifacts/
           retention-days: 14
