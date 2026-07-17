@@ -8,8 +8,31 @@ from football_v2.elo_live_state import (
     build_elo_live_state_frame,
     evaluate_elo_live_state,
 )
-from football_v2.statsbomb_discovery import discover_male_competition_seasons
-from football_v2.statsbomb_events import download_statsbomb_matches
+from football_v2.statsbomb_events import CompetitionSeason, download_statsbomb_matches
+
+
+_DEFAULT_SELECTIONS = (
+    CompetitionSeason(9, 281),
+    CompetitionSeason(9, 27),
+    CompetitionSeason(43, 106),
+    CompetitionSeason(43, 3),
+    CompetitionSeason(1267, 107),
+    CompetitionSeason(223, 282),
+    CompetitionSeason(16, 4),
+    CompetitionSeason(16, 1),
+    CompetitionSeason(16, 2),
+    CompetitionSeason(16, 27),
+)
+
+
+def _selections(value: str) -> list[CompetitionSeason]:
+    if value.strip().lower() == "fixed":
+        return list(_DEFAULT_SELECTIONS)
+    result: list[CompetitionSeason] = []
+    for item in value.split(","):
+        competition, season = item.strip().split(":", maxsplit=1)
+        result.append(CompetitionSeason(int(competition), int(season)))
+    return result
 
 
 def main() -> None:
@@ -19,12 +42,13 @@ def main() -> None:
     parser.add_argument("--cache-dir", default=".cache/statsbomb")
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--max-matches", type=int, default=1800)
+    parser.add_argument("--selections", default="fixed")
     parser.add_argument(
         "--output", default="artifacts/statsbomb_elo_live_state.json"
     )
     args = parser.parse_args()
 
-    selections = discover_male_competition_seasons(args.cache_dir)
+    selections = _selections(args.selections)
     matches = download_statsbomb_matches(
         selections,
         cache_dir=args.cache_dir,
@@ -39,12 +63,17 @@ def main() -> None:
             "source": "StatsBomb Open Data",
             "matches": len(matches),
             "selection_count": len(selections),
+            "selections": [
+                f"{item.competition_id}:{item.season_id}"
+                for item in selections
+            ],
             "first_date": str(frame["date"].min().date()),
             "last_date": str(frame["date"].max().date()),
             "underdog_definition": "pre-match rolling Elo with 65-point home advantage",
             "alert": "underdog leads 2-0 at 30 minutes",
             "target": "underdog finishes with at least 3 goals and wins by at least 2",
             "final_score_not_used_to_define_underdog": True,
+            "selection_list_frozen_before_results": True,
         },
     }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
