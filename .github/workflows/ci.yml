@@ -31,7 +31,7 @@ jobs:
           path: artifacts/
           retention-days: 7
 
-  halftime-core-method-audit:
+  halftime-topflight-domain-audit:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -46,20 +46,20 @@ jobs:
         with:
           path: .cache/football-data-halftime
           key: football-data-halftime-2000-2026-v1
-      - name: Run untouched second-shadow core audit
+      - name: Run independent historical top-flight blind audit
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_halftime_core_method_audit.py \
+          python scripts/run_halftime_topflight_domain_audit.py \
             --cache-dir .cache/football-data-halftime \
-            --output artifacts/halftime_core_method_audit.json \
-            > artifacts/halftime_core_method_audit.log 2>&1
+            --output artifacts/halftime_topflight_domain_audit.json \
+            > artifacts/halftime_topflight_domain_audit.log 2>&1
           status=$?
-          cat artifacts/halftime_core_method_audit.log
+          cat artifacts/halftime_topflight_domain_audit.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: halftime-core-method-audit
+          name: halftime-topflight-domain-audit
           path: artifacts/
           retention-days: 30
