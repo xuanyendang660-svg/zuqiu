@@ -15,7 +15,7 @@ def walk_forward_residual_benchmark(
     residual_config: ResidualConfig | None = None,
     top_k: int = 5,
 ) -> tuple[BenchmarkReport, MarketResidualScoreModel]:
-    """Expanding-window benchmark for the market-preserving residual model."""
+    """Expanding-window benchmark for the selective market-residual model."""
     if folds < 1:
         raise ValueError("folds must be positive")
     if not 0.50 <= initial_train_fraction <= 0.90:
@@ -34,6 +34,7 @@ def walk_forward_residual_benchmark(
     away_parts: list[np.ndarray] = []
     date_parts: list[np.ndarray] = []
     selections: list[dict[str, float]] = []
+    override_rates: list[float] = []
 
     for fold in range(folds):
         train_end = initial + fold * window
@@ -55,6 +56,7 @@ def walk_forward_residual_benchmark(
             train_market,
         )
         residual_parts.append(model.predict_distribution(test.features, test_market))
+        override_rates.append(float(np.mean(model.override_mask(test.features, test_market))))
         market_parts.append(test_market)
         poisson_parts.append(baseline_distributions(test, kind="poisson"))
         dixon_parts.append(baseline_distributions(test, kind="dixon_coles"))
@@ -66,6 +68,10 @@ def walk_forward_residual_benchmark(
                 "alpha": model.selection_.alpha,
                 "beta": model.selection_.beta,
                 "tail_boost": model.selection_.tail_boost,
+                "gate_ratio": model.selection_.gate_ratio,
+                "min_tail_probability": model.selection_.min_tail_probability,
+                "calibration_override_rate": model.selection_.calibration_override_rate,
+                "test_override_rate": override_rates[-1],
             }
         )
 
@@ -99,4 +105,5 @@ def walk_forward_residual_benchmark(
         all_market,
     )
     final_model.walk_forward_selections_ = selections
+    final_model.walk_forward_override_rate_ = float(np.mean(override_rates))
     return report, final_model
