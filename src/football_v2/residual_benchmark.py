@@ -1,10 +1,39 @@
 from __future__ import annotations
 
+from dataclasses import asdict
+
 import numpy as np
 
 from .benchmark import BenchmarkReport, baseline_distributions, evaluate_matrices
 from .dataset import HistoricalDataset
 from .residual import MarketResidualScoreModel, ResidualConfig
+
+
+def _exact_hit_mask(
+    matrices: np.ndarray, home_goals: np.ndarray, away_goals: np.ndarray
+) -> np.ndarray:
+    hits = np.zeros(len(matrices), dtype=bool)
+    for index, (matrix, home, away) in enumerate(
+        zip(matrices, home_goals, away_goals, strict=True)
+    ):
+        prediction = tuple(
+            int(value) for value in np.unravel_index(np.argmax(matrix), matrix.shape)
+        )
+        hits[index] = prediction == (int(home), int(away))
+    return hits
+
+
+def _rank_array(
+    matrices: np.ndarray, home_goals: np.ndarray, away_goals: np.ndarray
+) -> np.ndarray:
+    ranks = np.empty(len(matrices), dtype=float)
+    for index, (matrix, home, away) in enumerate(
+        zip(matrices, home_goals, away_goals, strict=True)
+    ):
+        order = np.argsort(matrix.ravel())[::-1]
+        actual_index = np.ravel_multi_index((int(home), int(away)), matrix.shape)
+        ranks[index] = int(np.where(order == actual_index)[0][0]) + 1
+    return ranks
 
 
 def walk_forward_residual_benchmark(
@@ -30,11 +59,11 @@ def walk_forward_residual_benchmark(
     market_parts: list[np.ndarray] = []
     poisson_parts: list[np.ndarray] = []
     dixon_parts: list[np.ndarray] = []
+    override_parts: list[np.ndarray] = []
     home_parts: list[np.ndarray] = []
     away_parts: list[np.ndarray] = []
     date_parts: list[np.ndarray] = []
-    selections: list[dict[str, float]] = []
-    override_rates: list[float] = []
+    selections: list[dict[str, object]] = []
 
     for fold in range(folds):
         train_end = initial + fold * window
@@ -56,7 +85,8 @@ def walk_forward_residual_benchmark(
             train_market,
         )
         residual_parts.append(model.predict_distribution(test.features, test_market))
-        override_rates.append(float(np.mean(model.override_mask(test.features, test_market))))
+        override = model.override_mask(test.features, test_market)
+        override_parts.append(override)
         market_parts.append(test_market)
         poisson_parts.append(baseline_distributions(test, kind="poisson"))
         dixon_parts.append(baseline_distributions(test, kind="dixon_coles"))
@@ -71,7 +101,10 @@ def walk_forward_residual_benchmark(
                 "gate_ratio": model.selection_.gate_ratio,
                 "min_tail_probability": model.selection_.min_tail_probability,
                 "calibration_override_rate": model.selection_.calibration_override_rate,
-                "test_override_rate": override_rates[-1],
+                "calibration_alert_metrics": asdict(
+                    model.selection_.calibration_alert_metrics
+                ),
+                "test_override_rate": float(np.mean(override)),
             }
         )
 
@@ -80,9 +113,12 @@ def walk_forward_residual_benchmark(
     home = np.concatenate(home_parts)
     away = np.concatenate(away_parts)
     dates = np.concatenate(date_parts)
+    overrides = np.concatenate(override_parts)
+    residual = np.concatenate(residual_parts)
+    market = np.concatenate(market_parts)
     predictions = {
-        "v2_residual": np.concatenate(residual_parts),
-        "market": np.concatenate(market_parts),
+        "v2_residual": residual,
+        "market": market,
         "dixon_coles": np.concatenate(dixon_parts),
         "poisson": np.concatenate(poisson_parts),
     }
@@ -97,6 +133,29 @@ def walk_forward_residual_benchmark(
         last_test_date=str(np.max(dates).astype("datetime64[D]")),
         metrics=metrics,
     )
+
+    alert_metrics = MarketResidualScoreModel.tail_alert_metrics(overrides, home, away)
+    residual_hits = _exact_hit_mask(residual, home, away)
+    market_hits = _exact_hit_mask(market, home, away)
+    residual_ranks = _rank_array(residual, home, away)
+    market_ranks = _rank_array(market, home, away)
+    if alert_metrics.alerts:
+        alert_details = {
+            **asdict(alert_metrics),
+            "v2_exact_accuracy": float(np.mean(residual_hits[overrides])),
+            "market_exact_accuracy": float(np.mean(market_hits[overrides])),
+            "v2_mean_actual_score_rank": float(np.mean(residual_ranks[overrides])),
+            "market_mean_actual_score_rank": float(np.mean(market_ranks[overrides])),
+        }
+    else:
+        alert_details = {
+            **asdict(alert_metrics),
+            "v2_exact_accuracy": None,
+            "market_exact_accuracy": None,
+            "v2_mean_actual_score_rank": None,
+            "market_mean_actual_score_rank": None,
+        }
+
     all_market = baseline_distributions(dataset, kind="market")
     final_model = MarketResidualScoreModel(residual_config).fit(
         dataset.features,
@@ -105,5 +164,6 @@ def walk_forward_residual_benchmark(
         all_market,
     )
     final_model.walk_forward_selections_ = selections
-    final_model.walk_forward_override_rate_ = float(np.mean(override_rates))
+    final_model.walk_forward_override_rate_ = float(np.mean(overrides))
+    final_model.walk_forward_tail_alert_metrics_ = alert_details
     return report, final_model
