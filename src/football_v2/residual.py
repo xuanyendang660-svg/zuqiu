@@ -12,6 +12,16 @@ from .metrics import DistributionMetrics, evaluate_matrices
 
 
 @dataclass(frozen=True)
+class TailAlertMetrics:
+    alerts: int
+    coverage: float
+    base_tail_rate: float
+    precision: float | None
+    recall: float
+    lift: float | None
+
+
+@dataclass(frozen=True)
 class ResidualConfig:
     max_goals: int = 7
     n_estimators: int = 220
@@ -21,8 +31,10 @@ class ResidualConfig:
     alpha_grid: tuple[float, ...] = (0.50, 0.75, 1.0)
     beta_grid: tuple[float, ...] = (0.0, 0.10)
     tail_boost_grid: tuple[float, ...] = (1.25, 1.50)
-    gate_ratio_grid: tuple[float, ...] = (1.50, 2.50, 4.00)
-    min_tail_probability_grid: tuple[float, ...] = (0.15, 0.25)
+    gate_ratio_grid: tuple[float, ...] = (1.50, 2.50, 4.00, 6.00)
+    min_tail_probability_grid: tuple[float, ...] = (0.15, 0.25, 0.35)
+    maximum_override_rate: float = 0.08
+    minimum_lift: float = 1.25
     probability_floor: float = 1e-8
 
 
@@ -34,17 +46,18 @@ class ResidualSelection:
     gate_ratio: float
     min_tail_probability: float
     calibration_override_rate: float
+    calibration_alert_metrics: TailAlertMetrics
     calibration_metrics: DistributionMetrics
     calibration_market_metrics: DistributionMetrics
 
 
 class MarketResidualScoreModel:
-    """Selectively override a market/DC score grid on high-confidence tail cases.
+    """Selectively override a market/DC grid on robust high-confidence tails.
 
-    Most matches remain exactly equal to the market-conditioned Dixon-Coles base.
-    A learned residual is activated only when its tail probability is both high
-    in absolute terms and high relative to the market tail mass. This prevents
-    tail recall from being purchased by degrading ordinary matches globally.
+    A candidate must preserve the ordinary market baseline, trigger on no more
+    than a small fraction of matches, and show tail lift in both chronological
+    halves of the calibration period. Otherwise the fitted model becomes the
+    unmodified market baseline.
     """
 
     _TAILS = {
@@ -59,6 +72,8 @@ class MarketResidualScoreModel:
             raise ValueError("max_goals must be at least 5")
         if not 0.10 <= self.config.calibration_fraction <= 0.40:
             raise ValueError("calibration_fraction must be between 0.10 and 0.40")
+        if not 0 < self.config.maximum_override_rate <= 0.25:
+            raise ValueError("maximum_override_rate must be between 0 and 0.25")
         forest_args = {
             "n_estimators": self.config.n_estimators,
             "min_samples_leaf": self.config.min_samples_leaf,
@@ -208,20 +223,57 @@ class MarketResidualScoreModel:
             output[row] = matrix
         return output, override
 
-    @staticmethod
-    def _is_feasible(
-        candidate: DistributionMetrics, market: DistributionMetrics
-    ) -> bool:
-        return (
-            candidate.exact_accuracy >= market.exact_accuracy - 0.002
-            and candidate.top_k_accuracy >= market.top_k_accuracy - 0.005
-            and candidate.direction_accuracy >= market.direction_accuracy - 0.010
-            and candidate.negative_log_likelihood <= market.negative_log_likelihood + 0.010
+    @classmethod
+    def tail_alert_metrics(
+        cls,
+        override: np.ndarray,
+        home_goals: np.ndarray,
+        away_goals: np.ndarray,
+    ) -> TailAlertMetrics:
+        alerts = np.asarray(override, dtype=bool)
+        home = np.asarray(home_goals, dtype=int)
+        away = np.asarray(away_goals, dtype=int)
+        actual_tail = np.array(
+            [
+                classify_score(int(home_goal), int(away_goal)) in cls._TAILS
+                for home_goal, away_goal in zip(home, away, strict=True)
+            ],
+            dtype=bool,
+        )
+        alert_count = int(alerts.sum())
+        tail_count = int(actual_tail.sum())
+        true_positive = int(np.logical_and(alerts, actual_tail).sum())
+        base_rate = tail_count / len(actual_tail) if len(actual_tail) else 0.0
+        precision = true_positive / alert_count if alert_count else None
+        recall = true_positive / tail_count if tail_count else 0.0
+        lift = precision / base_rate if precision is not None and base_rate > 0 else None
+        return TailAlertMetrics(
+            alerts=alert_count,
+            coverage=alert_count / len(alerts) if len(alerts) else 0.0,
+            base_tail_rate=base_rate,
+            precision=precision,
+            recall=recall,
+            lift=lift,
         )
 
     @staticmethod
-    def _tail_value(metrics: DistributionMetrics) -> float:
-        return metrics.extreme_tail_recall if metrics.extreme_tail_recall is not None else -1.0
+    def _is_market_safe(
+        candidate: DistributionMetrics, market: DistributionMetrics
+    ) -> bool:
+        return (
+            candidate.exact_accuracy >= market.exact_accuracy - 0.001
+            and candidate.top_k_accuracy >= market.top_k_accuracy - 0.003
+            and candidate.direction_accuracy >= market.direction_accuracy - 0.010
+            and candidate.negative_log_likelihood <= market.negative_log_likelihood + 0.005
+        )
+
+    def _is_tail_useful(self, alerts: TailAlertMetrics) -> bool:
+        return (
+            alerts.alerts >= 8
+            and alerts.coverage <= self.config.maximum_override_rate
+            and alerts.lift is not None
+            and alerts.lift >= self.config.minimum_lift
+        )
 
     def fit(
         self,
@@ -252,11 +304,23 @@ class MarketResidualScoreModel:
         exact, exact_classes, archetype, archetype_classes = self._probability_tables(
             raw[split:]
         )
-        market_metrics = evaluate_matrices(base[split:], home[split:], away[split:])
+        calibration_base = base[split:]
+        calibration_home = home[split:]
+        calibration_away = away[split:]
+        market_metrics = evaluate_matrices(
+            calibration_base, calibration_home, calibration_away
+        )
+        midpoint = len(calibration_home) // 2
+        slices = (slice(0, midpoint), slice(midpoint, None))
         candidates: list[
             tuple[ResidualSelection, tuple[float, float, float, float, float, float]]
         ] = []
 
+        empty_alerts = self.tail_alert_metrics(
+            np.zeros(len(calibration_home), dtype=bool),
+            calibration_home,
+            calibration_away,
+        )
         baseline_selection = ResidualSelection(
             alpha=0.0,
             beta=0.0,
@@ -264,6 +328,7 @@ class MarketResidualScoreModel:
             gate_ratio=float("inf"),
             min_tail_probability=1.0,
             calibration_override_rate=0.0,
+            calibration_alert_metrics=empty_alerts,
             calibration_metrics=market_metrics,
             calibration_market_metrics=market_metrics,
         )
@@ -272,7 +337,7 @@ class MarketResidualScoreModel:
                 baseline_selection,
                 (
                     1.0,
-                    self._tail_value(market_metrics),
+                    0.0,
                     market_metrics.exact_accuracy,
                     market_metrics.top_k_accuracy,
                     -market_metrics.negative_log_likelihood,
@@ -287,7 +352,7 @@ class MarketResidualScoreModel:
                     for gate_ratio in self.config.gate_ratio_grid:
                         for minimum in self.config.min_tail_probability_grid:
                             adjusted, override = self._combine(
-                                base[split:],
+                                calibration_base,
                                 exact,
                                 exact_classes,
                                 archetype,
@@ -299,7 +364,40 @@ class MarketResidualScoreModel:
                                 min_tail_probability=minimum,
                             )
                             metrics = evaluate_matrices(
-                                adjusted, home[split:], away[split:]
+                                adjusted, calibration_home, calibration_away
+                            )
+                            alerts = self.tail_alert_metrics(
+                                override, calibration_home, calibration_away
+                            )
+                            robust = True
+                            for time_slice in slices:
+                                half_market = evaluate_matrices(
+                                    calibration_base[time_slice],
+                                    calibration_home[time_slice],
+                                    calibration_away[time_slice],
+                                )
+                                half_candidate = evaluate_matrices(
+                                    adjusted[time_slice],
+                                    calibration_home[time_slice],
+                                    calibration_away[time_slice],
+                                )
+                                half_alerts = self.tail_alert_metrics(
+                                    override[time_slice],
+                                    calibration_home[time_slice],
+                                    calibration_away[time_slice],
+                                )
+                                robust = robust and self._is_market_safe(
+                                    half_candidate, half_market
+                                )
+                                if half_alerts.alerts:
+                                    robust = robust and self._is_tail_useful(half_alerts)
+                                else:
+                                    robust = False
+
+                            feasible = (
+                                robust
+                                and self._is_market_safe(metrics, market_metrics)
+                                and self._is_tail_useful(alerts)
                             )
                             selection = ResidualSelection(
                                 alpha=alpha,
@@ -308,17 +406,17 @@ class MarketResidualScoreModel:
                                 gate_ratio=gate_ratio,
                                 min_tail_probability=minimum,
                                 calibration_override_rate=float(np.mean(override)),
+                                calibration_alert_metrics=alerts,
                                 calibration_metrics=metrics,
                                 calibration_market_metrics=market_metrics,
                             )
-                            feasible = self._is_feasible(metrics, market_metrics)
                             score = (
                                 1.0 if feasible else 0.0,
-                                self._tail_value(metrics),
+                                alerts.lift if alerts.lift is not None else -1.0,
+                                alerts.precision if alerts.precision is not None else -1.0,
                                 metrics.exact_accuracy,
                                 metrics.top_k_accuracy,
                                 -metrics.negative_log_likelihood,
-                                -float(np.mean(override)),
                             )
                             candidates.append((selection, score))
 
