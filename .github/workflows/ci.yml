@@ -63,13 +63,13 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache/statsbomb
-          key: statsbomb-bundesliga-2015-2024-v1
+          key: statsbomb-all-male-events-v1
       - name: Download events and run event-tail walk-forward test
         run: >-
           python scripts/run_statsbomb_event_backtest.py
-          --selections 9:27,9:281
-          --max-matches 650
-          --workers 10
+          --selections auto
+          --max-matches 700
+          --workers 8
           --folds 2
           --initial-train-fraction 0.60
           --output artifacts/statsbomb_event_tail.json
