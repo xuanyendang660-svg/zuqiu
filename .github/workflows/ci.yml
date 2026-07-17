@@ -63,13 +63,15 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache/wyscout-repo
-          key: wyscout-public-top-five-leagues-v1
+          key: wyscout-public-top-five-leagues-v2-format
       - name: Clone public full-season Wyscout events
         run: |
           if [ ! -d .cache/wyscout-repo/.git ]; then
             rm -rf .cache/wyscout-repo
             git clone --depth 1 https://github.com/koenvo/wyscout-soccer-match-event-dataset.git .cache/wyscout-repo
           fi
+          rm -rf .cache/wyscout-repo/processed
+          ln -s processed-v2 .cache/wyscout-repo/processed
       - name: Run full-season event-tail walk-forward test
         run: |
           mkdir -p artifacts
