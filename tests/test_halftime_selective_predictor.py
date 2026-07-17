@@ -11,9 +11,9 @@ from football_v2.halftime_selective_predictor import (
 
 def test_home_underdog_rule_returns_home_1_0() -> None:
     prediction = predict_halftime_exact_score(
-        home_probability=0.28,
-        draw_probability=0.28,
-        away_probability=0.44,
+        home_probability=0.30,
+        draw_probability=0.27,
+        away_probability=0.43,
         halftime_home_score=1,
         halftime_away_score=0,
     )
