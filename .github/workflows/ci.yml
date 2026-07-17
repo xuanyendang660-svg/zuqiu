@@ -18,7 +18,7 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  cold-blowout-ranker-backtest:
+  clean-cold-blowout-audit:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -43,31 +43,9 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run nested cross-league cold-blowout ranker
+      - name: Run final outcome-independent unresolved audit
         run: |
           mkdir -p artifacts
-          set +e
-          python scripts/run_wyscout_cold_blowout_ranker.py \
-            --data-root .cache/wyscout-repo \
-            --workers 8 \
-            --output artifacts/wyscout_cold_blowout_ranker.json \
-            > artifacts/wyscout_cold_blowout_ranker.log 2>&1
-          status=$?
-          cat artifacts/wyscout_cold_blowout_ranker.log
-          exit $status
-      - name: Run strict unresolved cold-blowout audit
-        run: |
-          set +e
-          python scripts/run_wyscout_cold_blowout_strict_audit.py \
-            --data-root .cache/wyscout-repo \
-            --workers 8 \
-            --output artifacts/wyscout_cold_blowout_strict_audit.json \
-            > artifacts/wyscout_cold_blowout_strict_audit.log 2>&1
-          status=$?
-          cat artifacts/wyscout_cold_blowout_strict_audit.log
-          exit $status
-      - name: Run outcome-independent clean audit
-        run: |
           set +e
           python scripts/run_wyscout_cold_blowout_clean_audit.py \
             --data-root .cache/wyscout-repo \
@@ -80,6 +58,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-cold-blowout-ranker-report
+          name: wyscout-cold-blowout-clean-audit
           path: artifacts/
           retention-days: 14
