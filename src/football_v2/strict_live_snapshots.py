@@ -24,7 +24,10 @@ def build_strict_live_snapshot_dataset(
         raise ValueError("cutoffs must be between 1 and 89")
 
     index_map = {record.match_id: record for record in index_records}
-    strict_sides = resolve_wyscout_sides_strict(index_records)
+    strict_sides = resolve_wyscout_sides_strict(
+        index_records,
+        drop_invalid=True,
+    )
     side_map = {
         item.index.match_id: (item.home_team_id, item.away_team_id)
         for item in strict_sides
