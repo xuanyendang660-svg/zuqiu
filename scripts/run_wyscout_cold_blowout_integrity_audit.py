@@ -6,9 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
-from football_v2.live_score_integrity import repair_live_score_integrity
 from football_v2.live_snapshots import build_live_snapshot_dataset
 from football_v2.market_event_data import load_market_1718
+from football_v2.strict_live_snapshots import build_strict_live_snapshot_dataset
 from football_v2.strict_market_join import join_market_events_without_score
 from football_v2.wyscout_events import (
     build_wyscout_event_dataset,
@@ -21,7 +21,7 @@ from run_wyscout_cold_blowout_strict_audit import _json_default, _normalise
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Own-goal-corrected fixed live-state cold-blowout audit"
+        description="Strict-side and own-goal-corrected live-state audit"
     )
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--market-cache", default=".cache/football-data")
@@ -46,45 +46,58 @@ def main() -> None:
         records,
         cutoffs=cutoffs,
     )
-    repaired = repair_live_score_integrity(
-        raw_live,
+    strict_live = build_strict_live_snapshot_dataset(
+        args.data_root,
+        market_event_dataset,
         records,
         cutoffs=cutoffs,
     )
 
-    raw_home = raw_live.frame["live_home_score"].to_numpy(dtype=int)
-    raw_away = raw_live.frame["live_away_score"].to_numpy(dtype=int)
-    clean_home = repaired.frame["live_home_score"].to_numpy(dtype=int)
-    clean_away = repaired.frame["live_away_score"].to_numpy(dtype=int)
+    raw_frame = raw_live.frame.sort_values(
+        ["match_id", "snapshot_minute"]
+    ).reset_index(drop=True)
+    strict_frame = strict_live.frame.sort_values(
+        ["match_id", "snapshot_minute"]
+    ).reset_index(drop=True)
+    if list(raw_frame[["match_id", "snapshot_minute"]].itertuples(index=False)) != list(
+        strict_frame[["match_id", "snapshot_minute"]].itertuples(index=False)
+    ):
+        raise RuntimeError("raw and strict live snapshots do not align")
+
+    raw_home = raw_frame["live_home_score"].to_numpy(dtype=int)
+    raw_away = raw_frame["live_away_score"].to_numpy(dtype=int)
+    clean_home = strict_frame["live_home_score"].to_numpy(dtype=int)
+    clean_away = strict_frame["live_away_score"].to_numpy(dtype=int)
     changed = np.logical_or(raw_home != clean_home, raw_away != clean_away)
     impossible_before = np.logical_or(
-        raw_home > raw_live.frame["home_score"].to_numpy(dtype=int),
-        raw_away > raw_live.frame["away_score"].to_numpy(dtype=int),
+        raw_home > raw_frame["home_score"].to_numpy(dtype=int),
+        raw_away > raw_frame["away_score"].to_numpy(dtype=int),
     )
     impossible_after = np.logical_or(
-        clean_home > repaired.frame["home_score"].to_numpy(dtype=int),
-        clean_away > repaired.frame["away_score"].to_numpy(dtype=int),
+        clean_home > strict_frame["home_score"].to_numpy(dtype=int),
+        clean_away > strict_frame["away_score"].to_numpy(dtype=int),
     )
 
     payload = {
         "dataset": {
-            "matches": int(repaired.frame["match_id"].nunique()),
-            "snapshots": len(repaired.frame),
+            "matches": int(strict_frame["match_id"].nunique()),
+            "snapshots": len(strict_frame),
             "market_join_uses_final_score": False,
             "cutoffs": list(cutoffs),
         },
         "integrity": {
-            "snapshots_changed_by_score_repair": int(changed.sum()),
-            "matches_changed_by_score_repair": int(
-                repaired.frame.loc[changed, "match_id"].nunique()
+            "snapshots_changed_by_side_or_score_repair": int(changed.sum()),
+            "matches_changed_by_side_or_score_repair": int(
+                strict_frame.loc[changed, "match_id"].nunique()
             ),
             "impossible_snapshots_before_repair": int(impossible_before.sum()),
             "impossible_snapshots_after_repair": int(impossible_after.sum()),
             "event_final_score_verified_for_every_match": True,
+            "strict_side_resolution_used": True,
             "own_goals_credited_to_opponent": True,
         },
         "cutoffs": [
-            _cutoff_report(repaired.frame, cutoff)
+            _cutoff_report(strict_frame, cutoff)
             for cutoff in cutoffs
         ],
     }
