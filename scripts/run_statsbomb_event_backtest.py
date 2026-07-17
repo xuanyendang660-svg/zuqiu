@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from football_v2.event_tail_model import EventTailConfig, walk_forward_event_tail_test
+from football_v2.statsbomb_discovery import discover_male_competition_seasons
 from football_v2.statsbomb_events import (
     CompetitionSeason,
     build_event_dataset,
@@ -12,7 +13,9 @@ from football_v2.statsbomb_events import (
 )
 
 
-def _selections(value: str) -> list[CompetitionSeason]:
+def _selections(value: str, cache_dir: str) -> list[CompetitionSeason]:
+    if value.strip().lower() == "auto":
+        return discover_male_competition_seasons(cache_dir)
     result: list[CompetitionSeason] = []
     for item in value.split(","):
         competition, season = item.strip().split(":", maxsplit=1)
@@ -22,17 +25,18 @@ def _selections(value: str) -> list[CompetitionSeason]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="StatsBomb event-tail backtest")
-    parser.add_argument("--selections", default="9:27,9:281")
+    parser.add_argument("--selections", default="auto")
     parser.add_argument("--cache-dir", default=".cache/statsbomb")
-    parser.add_argument("--workers", type=int, default=10)
-    parser.add_argument("--max-matches", type=int, default=650)
+    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--max-matches", type=int, default=700)
     parser.add_argument("--folds", type=int, default=2)
     parser.add_argument("--initial-train-fraction", type=float, default=0.60)
     parser.add_argument("--output", default="artifacts/statsbomb_event_tail.json")
     args = parser.parse_args()
 
+    selections = _selections(args.selections, args.cache_dir)
     matches = download_statsbomb_matches(
-        _selections(args.selections),
+        selections,
         cache_dir=args.cache_dir,
         workers=args.workers,
         max_matches=args.max_matches,
@@ -48,7 +52,8 @@ def main() -> None:
     payload["dataset"] = {
         "rows": len(dataset.frame),
         "features": len(dataset.feature_columns),
-        "selections": args.selections,
+        "selection_count": len(selections),
+        "selection_mode": args.selections,
         "source": "StatsBomb Open Data",
         "first_date": str(dataset.frame["date"].min().date()),
         "last_date": str(dataset.frame["date"].max().date()),
