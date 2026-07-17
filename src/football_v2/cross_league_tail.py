@@ -58,6 +58,7 @@ def leave_one_league_out_test(
     if target_column not in dataset.frame.columns:
         raise ValueError(f"missing target column: {target_column}")
     target = dataset.frame[target_column].to_numpy(dtype=int)
+    score_target = dataset.frame["tail_target"].to_numpy(dtype=int)
     league = dataset.frame["division_id"].to_numpy(dtype=int)
     market_mask = _market_mask(dataset.feature_columns)
 
@@ -84,6 +85,7 @@ def leave_one_league_out_test(
         train_x = dataset.features[train_mask][train_order]
         test_x = dataset.features[test_mask][test_order]
         train_target = target[train_mask][train_order]
+        train_score_target = score_target[train_mask][train_order]
         test_target = target[test_mask][test_order]
         train_types = dataset.tail_type[train_mask][train_order]
         train_home = dataset.home_goals[train_mask][train_order]
@@ -110,17 +112,21 @@ def leave_one_league_out_test(
         full_output = _predict_fold(full_model, test_x, config)
         market_output = _predict_fold(market_model, test_x[:, market_mask], config)
 
-        full_exact_model = TailExactScoreModel(random_state=config.random_state).fit(
+        full_exact_model = TailExactScoreModel(
+            random_state=config.random_state
+        ).fit(
             train_x,
             train_home,
             train_away,
-            train_target,
+            train_score_target,
         )
-        market_exact_model = TailExactScoreModel(random_state=config.random_state + 1).fit(
+        market_exact_model = TailExactScoreModel(
+            random_state=config.random_state + 1
+        ).fit(
             train_x[:, market_mask],
             train_home,
             train_away,
-            train_target,
+            train_score_target,
         )
         full_exact_distribution = full_exact_model.predict_distribution(test_x)
         market_exact_distribution = market_exact_model.predict_distribution(
@@ -140,7 +146,9 @@ def leave_one_league_out_test(
                 "test_matches": int(test_mask.sum()),
                 "full_threshold": full_output.threshold,
                 "market_threshold": market_output.threshold,
-                "full_alerts": asdict(alert_metrics(full_output.alerts, test_target)),
+                "full_alerts": asdict(
+                    alert_metrics(full_output.alerts, test_target)
+                ),
                 "market_alerts": asdict(
                     alert_metrics(market_output.alerts, test_target)
                 ),
