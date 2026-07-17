@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterable
 
 import numpy as np
 import pandas as pd
@@ -88,13 +87,37 @@ def parse_wyscout_file(path: str | Path) -> EventMatch:
         summary = summaries[team_id]
         event_type = _as_text(row_dict.get("event_type"))
         result = _as_text(row_dict.get("result"))
-        success = bool(row_dict.get("success")) if row_dict.get("success") is not None else False
-        x = float(row_dict.get("coordinates_x")) if pd.notna(row_dict.get("coordinates_x")) else np.nan
-        y = float(row_dict.get("coordinates_y")) if pd.notna(row_dict.get("coordinates_y")) else np.nan
-        end_x = float(row_dict.get("end_coordinates_x")) if pd.notna(row_dict.get("end_coordinates_x")) else np.nan
-        end_y = float(row_dict.get("end_coordinates_y")) if pd.notna(row_dict.get("end_coordinates_y")) else np.nan
+        success = (
+            bool(row_dict.get("success"))
+            if row_dict.get("success") is not None
+            else False
+        )
+        x = (
+            float(row_dict.get("coordinates_x"))
+            if pd.notna(row_dict.get("coordinates_x"))
+            else np.nan
+        )
+        y = (
+            float(row_dict.get("coordinates_y"))
+            if pd.notna(row_dict.get("coordinates_y"))
+            else np.nan
+        )
+        end_x = (
+            float(row_dict.get("end_coordinates_x"))
+            if pd.notna(row_dict.get("end_coordinates_x"))
+            else np.nan
+        )
+        end_y = (
+            float(row_dict.get("end_coordinates_y"))
+            if pd.notna(row_dict.get("end_coordinates_y"))
+            else np.nan
+        )
         timestamp = row_dict.get("timestamp")
-        second = float(pd.Timedelta(timestamp).total_seconds()) if timestamp is not None else 0.0
+        second = (
+            float(pd.Timedelta(timestamp).total_seconds())
+            if timestamp is not None
+            else 0.0
+        )
         body_part = _as_text(row_dict.get("body_part_type"))
         set_piece = _as_text(row_dict.get("set_piece_type"))
         counter = bool(row_dict.get("is_counter_attack"))
@@ -105,7 +128,9 @@ def parse_wyscout_file(path: str | Path) -> EventMatch:
             xg = _shot_quality(x, y, body_part)
             summary.xg += xg
             summary.shots += 1
-            summary.shots_on_target += int(result in {"GOAL", "SAVED", "SAVED_TO_POST"})
+            summary.shots_on_target += int(
+                result in {"GOAL", "SAVED", "SAVED_TO_POST"}
+            )
             summary.big_chances += int(xg >= 0.18)
             summary.counter_xg += xg if counter or quick_transition else 0.0
             summary.set_piece_xg += xg if set_piece else 0.0
@@ -113,12 +138,21 @@ def parse_wyscout_file(path: str | Path) -> EventMatch:
                 summary.goal_minutes.append(_time_minutes(timestamp))
         if event_type == "PASS":
             summary.passes += 1
-            summary.completed_passes += int(success or result in {"COMPLETE", "SUCCESS"})
+            summary.completed_passes += int(
+                success or result in {"COMPLETE", "SUCCESS"}
+            )
         if event_type in {"DUEL", "INTERCEPTION", "RECOVERY", "TACKLE"}:
             summary.pressures += 1
-        if event_type in {"INTERCEPTION", "RECOVERY", "TACKLE"} and np.isfinite(x) and x >= 0.67:
+        if (
+            event_type in {"INTERCEPTION", "RECOVERY", "TACKLE"}
+            and np.isfinite(x)
+            and x >= 0.67
+        ):
             summary.high_recoveries += 1
-        if (event_type == "PASS" and not success) or event_type in {"MISCONTROL", "DISPOSSESSED"}:
+        if (event_type == "PASS" and not success) or event_type in {
+            "MISCONTROL",
+            "DISPOSSESSED",
+        }:
             summary.turnovers += 1
         if event_type in {"FOUL", "FOUL_COMMITTED"}:
             summary.fouls += 1
@@ -127,8 +161,14 @@ def parse_wyscout_file(path: str | Path) -> EventMatch:
         if np.isfinite(x) and np.isfinite(end_x):
             summary.progressive_actions += int(end_x - x >= 0.20)
             summary.final_third_entries += int(x < 0.67 <= end_x)
-            start_box = x >= 0.85 and 0.20 <= y <= 0.80 if np.isfinite(y) else False
-            end_box = end_x >= 0.85 and 0.20 <= end_y <= 0.80 if np.isfinite(end_y) else False
+            start_box = (
+                x >= 0.85 and 0.20 <= y <= 0.80 if np.isfinite(y) else False
+            )
+            end_box = (
+                end_x >= 0.85 and 0.20 <= end_y <= 0.80
+                if np.isfinite(end_y)
+                else False
+            )
             summary.box_entries += int(not start_box and end_box)
 
         previous_team = team_id
@@ -212,10 +252,14 @@ def build_wyscout_event_dataset(matches: list[EventMatch]) -> EventDataset:
     frame = dataset.frame.copy()
     frame["tail_target"] = [
         int(is_jackpot_tail(int(home), int(away)))
-        for home, away in zip(frame["home_score"], frame["away_score"], strict=True)
+        for home, away in zip(
+            frame["home_score"], frame["away_score"], strict=True
+        )
     ]
     frame["tail_type"] = [
         jackpot_tail_type(int(home), int(away)).value
-        for home, away in zip(frame["home_score"], frame["away_score"], strict=True)
+        for home, away in zip(
+            frame["home_score"], frame["away_score"], strict=True
+        )
     ]
     return EventDataset(frame, dataset.feature_columns)
