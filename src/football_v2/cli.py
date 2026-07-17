@@ -29,7 +29,7 @@ def _json_dump(payload: object, path: Path | None = None) -> None:
     print(text)
 
 
-def _selection_payload(model: MarketResidualScoreModel) -> dict[str, float]:
+def _selection_payload(model: MarketResidualScoreModel) -> dict[str, object]:
     return {
         "alpha": model.selection_.alpha,
         "beta": model.selection_.beta,
@@ -37,6 +37,9 @@ def _selection_payload(model: MarketResidualScoreModel) -> dict[str, float]:
         "gate_ratio": model.selection_.gate_ratio,
         "min_tail_probability": model.selection_.min_tail_probability,
         "calibration_override_rate": model.selection_.calibration_override_rate,
+        "calibration_alert_metrics": asdict(
+            model.selection_.calibration_alert_metrics
+        ),
     }
 
 
@@ -74,6 +77,9 @@ def _backtest_real(args: argparse.Namespace) -> None:
     payload["walk_forward_override_rate"] = getattr(
         model, "walk_forward_override_rate_", 0.0
     )
+    payload["walk_forward_tail_alert_metrics"] = getattr(
+        model, "walk_forward_tail_alert_metrics_", {}
+    )
     payload["final_residual_selection"] = _selection_payload(model)
     output = Path(args.output)
     bundle_path = Path(args.model_output)
@@ -83,7 +89,7 @@ def _backtest_real(args: argparse.Namespace) -> None:
             feature_columns=dataset.feature_columns,
             metadata={
                 "version": "0.2.0",
-                "model_type": "selective_market_residual",
+                "model_type": "precision_gated_market_residual",
                 "training_rows": len(dataset.frame),
                 "first_date": payload["dataset"]["first_date"],
                 "last_date": payload["dataset"]["last_date"],
@@ -111,7 +117,7 @@ def _records_to_matrix(
 def _predict_json(args: argparse.Namespace) -> None:
     bundle = load_bundle(args.model)
     if not isinstance(bundle.model, MarketResidualScoreModel):
-        raise TypeError("saved model is not the selective market-residual v2 model")
+        raise TypeError("saved model is not the precision-gated market-residual v2 model")
     raw = json.loads(Path(args.features).read_text(encoding="utf-8"))
     records = raw if isinstance(raw, list) else [raw]
     if not all(isinstance(record, dict) for record in records):
