@@ -37,20 +37,15 @@ def classify_score(home_goals: int, away_goals: int) -> ScoreArchetype:
 
 
 def is_jackpot_tail(home_goals: int, away_goals: int) -> bool:
-    """Rare pre-match tail used for jackpot-oriented alert tests.
-
-    Includes 4-0/0-4, 4-1/1-4, 5+ single-team scores and 3-3-type six-goal
-    shootouts, while excluding common open scores such as 3-2 and 2-3.
-    """
+    """Rare score tail: 5+ by one team, four-goal margin, or six-goal mutual game."""
     if min(home_goals, away_goals) < 0:
         raise ValueError("goals cannot be negative")
     total = home_goals + away_goals
     margin = abs(home_goals - away_goals)
     return (
-        total >= 6
-        or max(home_goals, away_goals) >= 5
+        max(home_goals, away_goals) >= 5
         or margin >= 4
-        or (total >= 5 and margin >= 3)
+        or (total >= 6 and min(home_goals, away_goals) >= 2)
     )
 
 
