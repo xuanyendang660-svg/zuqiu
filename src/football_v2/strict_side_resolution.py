@@ -90,54 +90,33 @@ def _credited_goal_events(
     events: list[dict[str, object]],
     team_ids: tuple[int, ...],
 ) -> list[tuple[float, int, str]]:
-    """Return one credited scoring event per actual goal.
+    """Return goals supported by an actual scoring action.
 
-    Most goals have both a scoring action and a goalkeeper event tagged 101.
-    The goalkeeper event is ignored when a primary scoring action exists nearby.
-    A tiny number of feeds omit the shot and retain only the failed save; those
-    orphan goalkeeper events are credited to the opponent.
+    Goalkeeper events tagged 101 are deliberately excluded. Most duplicate a
+    scoring action; a tiny number are source-data errors or orphan events. We do
+    not infer a missing goal from the final result because that would contaminate
+    historical live-state features with outcome knowledge.
     """
 
     if len(team_ids) != 2:
         return []
     pair = (int(team_ids[0]), int(team_ids[1]))
-    primary: list[tuple[float, int, str]] = []
-    goalkeeper_candidates: list[tuple[float, int]] = []
-
+    credits: list[tuple[float, int, str]] = []
     for event in events:
         team_value = event.get("teamId")
-        if team_value is None:
+        if team_value is None or not _is_primary_scoring_event(event):
             continue
         team_id = int(team_value)
         if team_id not in pair:
             continue
         tags = _event_tags(event)
-        clock = _event_clock_seconds(event)
-        if _is_primary_scoring_event(event):
-            scoring_team = (
-                _opponent(team_id, pair)
-                if _OWN_GOAL_TAG in tags
-                else team_id
-            )
-            source = "own_goal" if _OWN_GOAL_TAG in tags else "scoring_action"
-            primary.append((clock, scoring_team, source))
-        elif int(event.get("eventId") or -1) == 9 and _GOAL_TAG in tags:
-            goalkeeper_candidates.append((clock, team_id))
-
-    credits = list(primary)
-    primary_times = [clock for clock, _, _ in primary]
-    orphan_credits: list[tuple[float, int, str]] = []
-    for clock, goalkeeper_team in goalkeeper_candidates:
-        if any(abs(clock - primary_clock) <= 8.0 for primary_clock in primary_times):
-            continue
-        scoring_team = _opponent(goalkeeper_team, pair)
-        duplicate = any(
-            abs(clock - existing_clock) <= 8.0 and existing_team == scoring_team
-            for existing_clock, existing_team, _ in orphan_credits
+        scoring_team = (
+            _opponent(team_id, pair)
+            if _OWN_GOAL_TAG in tags
+            else team_id
         )
-        if not duplicate:
-            orphan_credits.append((clock, scoring_team, "orphan_goalkeeper"))
-    credits.extend(orphan_credits)
+        source = "own_goal" if _OWN_GOAL_TAG in tags else "scoring_action"
+        credits.append((_event_clock_seconds(event), scoring_team, source))
     credits.sort(key=lambda item: item[0])
     return credits
 
@@ -177,6 +156,8 @@ def _register_mapping(
 
 def resolve_wyscout_sides_strict(
     records: list[WyscoutIndexRecord],
+    *,
+    drop_invalid: bool = False,
 ) -> list[WyscoutSideRecord]:
     summaries: dict[
         int,
@@ -189,11 +170,14 @@ def resolve_wyscout_sides_strict(
     for record in records:
         payload = json.loads(Path(record.path).read_text(encoding="utf-8"))
         events = _payload_events(payload)
-        team_ids = _team_ids(events)
-        counts = _credited_goal_counts(events, team_ids)
         explicit_sides = _processed_v2_ordered_sides(payload)
         metadata_sides = _team_side_metadata(payload)
         preferred_sides = explicit_sides or metadata_sides
+        event_team_ids = _team_ids(events)
+        team_ids = tuple(
+            sorted(set(event_team_ids) | set(preferred_sides or ()))
+        )
+        counts = _credited_goal_counts(events, team_ids)
         summaries[record.match_id] = (team_ids, counts, preferred_sides)
 
         sides: tuple[int, int] | None = None
@@ -250,7 +234,7 @@ def resolve_wyscout_sides_strict(
             break
 
     unresolved = [record for record in records if record.match_id not in resolved]
-    if unresolved:
+    if unresolved and not drop_invalid:
         sample = "; ".join(
             f"{record.match_id}:{record.home_name}-{record.away_name}"
             for record in unresolved[:10]
@@ -262,7 +246,10 @@ def resolve_wyscout_sides_strict(
     output: list[WyscoutSideRecord] = []
     failures: list[str] = []
     for record in records:
-        home_id, away_id = resolved[record.match_id]
+        sides = resolved.get(record.match_id)
+        if sides is None:
+            continue
+        home_id, away_id = sides
         team_ids, counts, _ = summaries[record.match_id]
         if home_id not in team_ids or away_id not in team_ids:
             failures.append(f"{record.match_id}: resolved IDs absent from events")
@@ -277,7 +264,7 @@ def resolve_wyscout_sides_strict(
             continue
         output.append(WyscoutSideRecord(record, home_id, away_id))
 
-    if failures:
+    if failures and not drop_invalid:
         sample = "; ".join(failures[:10])
         raise RuntimeError(
             f"strict side resolution failed validation for {len(failures)} matches: {sample}"
