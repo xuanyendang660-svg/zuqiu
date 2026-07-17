@@ -29,6 +29,17 @@ def _json_dump(payload: object, path: Path | None = None) -> None:
     print(text)
 
 
+def _selection_payload(model: MarketResidualScoreModel) -> dict[str, float]:
+    return {
+        "alpha": model.selection_.alpha,
+        "beta": model.selection_.beta,
+        "tail_boost": model.selection_.tail_boost,
+        "gate_ratio": model.selection_.gate_ratio,
+        "min_tail_probability": model.selection_.min_tail_probability,
+        "calibration_override_rate": model.selection_.calibration_override_rate,
+    }
+
+
 def _backtest_real(args: argparse.Namespace) -> None:
     frame = load_premier_league_frame(_season_list(args.seasons))
     dataset = build_historical_dataset(frame, max_goals=args.max_goals)
@@ -60,11 +71,10 @@ def _backtest_real(args: argparse.Namespace) -> None:
     payload["walk_forward_residual_selections"] = getattr(
         model, "walk_forward_selections_", []
     )
-    payload["final_residual_selection"] = {
-        "alpha": model.selection_.alpha,
-        "beta": model.selection_.beta,
-        "tail_boost": model.selection_.tail_boost,
-    }
+    payload["walk_forward_override_rate"] = getattr(
+        model, "walk_forward_override_rate_", 0.0
+    )
+    payload["final_residual_selection"] = _selection_payload(model)
     output = Path(args.output)
     bundle_path = Path(args.model_output)
     save_bundle(
@@ -73,7 +83,7 @@ def _backtest_real(args: argparse.Namespace) -> None:
             feature_columns=dataset.feature_columns,
             metadata={
                 "version": "0.2.0",
-                "model_type": "market_residual",
+                "model_type": "selective_market_residual",
                 "training_rows": len(dataset.frame),
                 "first_date": payload["dataset"]["first_date"],
                 "last_date": payload["dataset"]["last_date"],
@@ -101,7 +111,7 @@ def _records_to_matrix(
 def _predict_json(args: argparse.Namespace) -> None:
     bundle = load_bundle(args.model)
     if not isinstance(bundle.model, MarketResidualScoreModel):
-        raise TypeError("saved model is not the market-residual v2 model")
+        raise TypeError("saved model is not the selective market-residual v2 model")
     raw = json.loads(Path(args.features).read_text(encoding="utf-8"))
     records = raw if isinstance(raw, list) else [raw]
     if not all(isinstance(record, dict) for record in records):
@@ -113,8 +123,9 @@ def _predict_json(args: argparse.Namespace) -> None:
         HistoricalDataset(feature_frame, bundle.feature_columns), kind="market"
     )
     distributions = bundle.model.predict_distribution(matrix, base)
+    overrides = bundle.model.override_mask(matrix, base)
     output: list[dict[str, object]] = []
-    for distribution in distributions:
+    for distribution, overridden in zip(distributions, overrides, strict=True):
         order = np.argsort(distribution.ravel())[::-1][: args.top_k]
         ranked = [
             {
@@ -127,11 +138,8 @@ def _predict_json(args: argparse.Namespace) -> None:
             {
                 "final_score": ranked[0]["score"],
                 "ranked_scores": ranked,
-                "residual_selection": {
-                    "alpha": bundle.model.selection_.alpha,
-                    "beta": bundle.model.selection_.beta,
-                    "tail_boost": bundle.model.selection_.tail_boost,
-                },
+                "tail_override_triggered": bool(overridden),
+                "residual_selection": _selection_payload(bundle.model),
             }
         )
     _json_dump(
