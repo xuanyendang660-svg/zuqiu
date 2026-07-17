@@ -18,10 +18,10 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  clean-remaining-goals-benchmark:
+  statsbomb-live-state-validation:
     needs: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,33 +31,24 @@ jobs:
       - run: pip install -e ".[dev]"
       - uses: actions/cache@v4
         with:
-          path: |
-            .cache/wyscout-repo
-            .cache/football-data
-          key: wyscout-live-dynamic-v1
-      - name: Clone public Wyscout events
-        run: |
-          if [ ! -d .cache/wyscout-repo/.git ]; then
-            rm -rf .cache/wyscout-repo
-            git clone --depth 1 https://github.com/koenvo/wyscout-soccer-match-event-dataset.git .cache/wyscout-repo
-          fi
-          rm -rf .cache/wyscout-repo/processed
-          ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run clean remaining-goal benchmark
+          path: .cache/statsbomb
+          key: statsbomb-elo-live-state-v1
+      - name: Run cross-source live-state validation
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_clean_remaining_goals.py \
-            --data-root .cache/wyscout-repo \
-            --workers 8 \
-            --output artifacts/wyscout_clean_remaining_goals.json \
-            > artifacts/wyscout_clean_remaining_goals.log 2>&1
+          python scripts/run_statsbomb_elo_live_state.py \
+            --cache-dir .cache/statsbomb \
+            --workers 12 \
+            --max-matches 1800 \
+            --output artifacts/statsbomb_elo_live_state.json \
+            > artifacts/statsbomb_elo_live_state.log 2>&1
           status=$?
-          cat artifacts/wyscout_clean_remaining_goals.log
+          cat artifacts/statsbomb_elo_live_state.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-clean-remaining-goals
+          name: statsbomb-elo-live-state
           path: artifacts/
           retention-days: 14
