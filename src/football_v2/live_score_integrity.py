@@ -34,8 +34,6 @@ def _score_timeline(
             cutoff = cutoffs[cutoff_index]
             timeline[cutoff] = (score[home_team_id], score[away_team_id])
             cutoff_index += 1
-        if cutoff_index >= len(cutoffs) and event.get("teamId") is None:
-            continue
 
         team_value = event.get("teamId")
         if team_value is None:
@@ -47,8 +45,7 @@ def _score_timeline(
         if _GOAL_TAG not in tags:
             continue
 
-        own_goal = _OWN_GOAL_TAG in tags
-        if own_goal:
+        if _OWN_GOAL_TAG in tags:
             scoring_team = away_team_id if team_id == home_team_id else home_team_id
         else:
             scoring_team = team_id
@@ -67,13 +64,14 @@ def repair_live_score_integrity(
     index_records: list[WyscoutIndexRecord],
     *,
     cutoffs: tuple[int, ...],
+    side_map: dict[int, tuple[int, int]] | None = None,
 ) -> LiveSnapshotDataset:
     if not cutoffs:
         raise ValueError("cutoffs must not be empty")
 
     frame = dataset.frame.copy()
     records = {record.match_id: record for record in index_records}
-    side_map = {
+    resolved_side_map = side_map or {
         item.index.match_id: (item.home_team_id, item.away_team_id)
         for item in resolve_wyscout_sides(index_records)
     }
@@ -82,7 +80,7 @@ def repair_live_score_integrity(
 
     for match_id in sorted(frame["match_id"].astype(int).unique()):
         record = records.get(match_id)
-        sides = side_map.get(match_id)
+        sides = resolved_side_map.get(match_id)
         if record is None or sides is None:
             failures.append(f"{match_id}: missing record or side mapping")
             continue
