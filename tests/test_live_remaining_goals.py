@@ -27,4 +27,4 @@ def test_conditional_score_matrix_never_goes_below_current_score() -> None:
     assert np.isclose(matrix.sum(), 1.0)
     assert np.all(matrix[:1, :] == 0)
     assert np.all(matrix[:, :3] == 0)
-    assert matrix[1:, 3:].sum() == 1.0
+    assert np.isclose(matrix[1:, 3:].sum(), 1.0)
