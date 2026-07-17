@@ -18,10 +18,10 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  wyscout-mechanism-backtest:
+  remaining-goals-backtest:
     needs: unit-tests
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,21 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run cross-league upset mechanism test
+      - name: Run conditional remaining-goals exact-score test
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_mechanism_backtest.py \
+          python scripts/run_wyscout_remaining_goals.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --output artifacts/wyscout_mechanism_tail.json \
-            > artifacts/wyscout_mechanism_run.log 2>&1
+            --output artifacts/wyscout_remaining_goals.json \
+            > artifacts/wyscout_remaining_goals.log 2>&1
           status=$?
-          cat artifacts/wyscout_mechanism_run.log
+          cat artifacts/wyscout_remaining_goals.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-mechanism-report
+          name: wyscout-remaining-goals-report
           path: artifacts/
           retention-days: 14
