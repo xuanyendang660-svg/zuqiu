@@ -18,7 +18,7 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  cold-tail-intersection-backtest:
+  oriented-score-backtest:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -43,21 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run live cold-tail intersection test
+      - name: Run underdog-favorite oriented exact-score test
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_cold_tail_intersection.py \
+          python scripts/run_wyscout_oriented_score.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --output artifacts/wyscout_cold_tail_intersection.json \
-            > artifacts/wyscout_cold_tail_intersection.log 2>&1
+            --output artifacts/wyscout_oriented_score.json \
+            > artifacts/wyscout_oriented_score.log 2>&1
           status=$?
-          cat artifacts/wyscout_cold_tail_intersection.log
+          cat artifacts/wyscout_oriented_score.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-cold-tail-intersection-report
+          name: wyscout-oriented-score-report
           path: artifacts/
           retention-days: 14
