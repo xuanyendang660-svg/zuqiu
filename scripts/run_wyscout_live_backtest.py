@@ -34,6 +34,13 @@ def _normalise(records: list[WyscoutIndexRecord]) -> list[WyscoutIndexRecord]:
     ]
 
 
+def _json_default(value: object) -> object:
+    item = getattr(value, "item", None)
+    if callable(item):
+        return item()
+    return str(value)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="15/30/45 minute dynamic tail test")
     parser.add_argument("--data-root", required=True)
@@ -95,13 +102,16 @@ def main() -> None:
             ),
         },
     }
+    text = json.dumps(
+        payload,
+        ensure_ascii=False,
+        indent=2,
+        default=_json_default,
+    )
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    output.write_text(text + "\n", encoding="utf-8")
+    print(text)
 
 
 if __name__ == "__main__":
