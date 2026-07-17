@@ -50,18 +50,23 @@ def _processed_v2_ordered_sides(payload: object) -> tuple[int, int] | None:
 
 
 def _is_scoring_goal_event(event: dict[str, object]) -> bool:
-    """Return true only for shot-like events that actually create a goal.
+    """Identify scoring events without counting failed goalkeeper saves.
 
-    Wyscout also puts tag 101 on the opposing goalkeeper's failed save event.
-    Counting every tagged event therefore double-counts each goal for both teams.
+    Tag 101 also appears on the conceding goalkeeper event. Own goals, however,
+    are attached to the defender's touch, clearance, or pass and must be
+    credited to the opponent regardless of the event family.
     """
 
     tags = _event_tags(event)
-    if _GOAL_TAG not in tags and _OWN_GOAL_TAG not in tags:
+    if _OWN_GOAL_TAG in tags:
+        return True
+    if _GOAL_TAG not in tags:
         return False
     event_id = int(event.get("eventId") or -1)
     sub_event_id = int(event.get("subEventId") or -1)
-    return event_id == 10 or (event_id == 3 and sub_event_id in {33, 35})
+    return event_id == 10 or (
+        event_id == 3 and sub_event_id in {30, 33, 35}
+    )
 
 
 def _credited_goal_counts(
