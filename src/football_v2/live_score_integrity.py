@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 
 from .live_snapshots import LiveSnapshotDataset, _absolute_minute
-from .strict_side_resolution import resolve_wyscout_sides_strict
+from .strict_side_resolution import (
+    _is_scoring_goal_event,
+    resolve_wyscout_sides_strict,
+)
 from .wyscout_events import (
     WyscoutIndexRecord,
-    _GOAL_TAG,
     _OWN_GOAL_TAG,
     _event_tags,
     _payload_events,
@@ -34,18 +36,13 @@ def _score_timeline(
             cutoff_index += 1
 
         team_value = event.get("teamId")
-        if team_value is None:
+        if team_value is None or not _is_scoring_goal_event(event):
             continue
         team_id = int(team_value)
         if team_id not in score:
             continue
         tags = _event_tags(event)
-        is_own_goal = _OWN_GOAL_TAG in tags
-        is_goal = _GOAL_TAG in tags or is_own_goal
-        if not is_goal:
-            continue
-
-        if is_own_goal:
+        if _OWN_GOAL_TAG in tags:
             scoring_team = away_team_id if team_id == home_team_id else home_team_id
         else:
             scoring_team = team_id
