@@ -127,7 +127,11 @@ def test_goalkeeper_failed_save_tag_does_not_add_a_goal(tmp_path: Path) -> None:
 def test_orphan_goalkeeper_event_credits_opponent(tmp_path: Path) -> None:
     path = tmp_path / "5.json"
     payload = {
-        "events": [_shot(11, tuple(), 60), _keeper_goal(11, 120)],
+        "events": [
+            _shot(11, tuple(), 60),
+            _shot(22, tuple(), 90),
+            _keeper_goal(11, 120),
+        ],
         "teams": {
             "11": {"team": {"wyId": 11, "officialName": "Alpha"}},
             "22": {"team": {"wyId": 22, "officialName": "Beta"}},
