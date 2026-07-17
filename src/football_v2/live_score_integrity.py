@@ -3,17 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .live_snapshots import LiveSnapshotDataset, _absolute_minute
+from .live_snapshots import LiveSnapshotDataset
 from .strict_side_resolution import (
-    _is_scoring_goal_event,
+    _credited_goal_events,
     resolve_wyscout_sides_strict,
 )
-from .wyscout_events import (
-    WyscoutIndexRecord,
-    _OWN_GOAL_TAG,
-    _event_tags,
-    _payload_events,
-)
+from .wyscout_events import WyscoutIndexRecord, _payload_events
 
 
 def _score_timeline(
@@ -23,37 +18,25 @@ def _score_timeline(
     cutoffs: tuple[int, ...],
 ) -> tuple[dict[int, tuple[int, int]], tuple[int, int]]:
     payload = json.loads(Path(record.path).read_text(encoding="utf-8"))
-    events = sorted(_payload_events(payload), key=_absolute_minute)
-    score = {home_team_id: 0, away_team_id: 0}
+    events = _payload_events(payload)
+    credits = _credited_goal_events(events, (home_team_id, away_team_id))
     timeline: dict[int, tuple[int, int]] = {}
-    cutoff_index = 0
 
-    for event in events + [{"matchPeriod": "2H", "eventSec": 46 * 60}]:
-        minute = _absolute_minute(event)
-        while cutoff_index < len(cutoffs) and minute > cutoffs[cutoff_index]:
-            cutoff = cutoffs[cutoff_index]
-            timeline[cutoff] = (score[home_team_id], score[away_team_id])
-            cutoff_index += 1
+    for cutoff in cutoffs:
+        cutoff_seconds = float(cutoff) * 60.0
+        home_score = sum(
+            scoring_team == home_team_id and clock <= cutoff_seconds
+            for clock, scoring_team, _ in credits
+        )
+        away_score = sum(
+            scoring_team == away_team_id and clock <= cutoff_seconds
+            for clock, scoring_team, _ in credits
+        )
+        timeline[int(cutoff)] = (int(home_score), int(away_score))
 
-        team_value = event.get("teamId")
-        if team_value is None or not _is_scoring_goal_event(event):
-            continue
-        team_id = int(team_value)
-        if team_id not in score:
-            continue
-        tags = _event_tags(event)
-        if _OWN_GOAL_TAG in tags:
-            scoring_team = away_team_id if team_id == home_team_id else home_team_id
-        else:
-            scoring_team = team_id
-        score[scoring_team] += 1
-
-    while cutoff_index < len(cutoffs):
-        cutoff = cutoffs[cutoff_index]
-        timeline[cutoff] = (score[home_team_id], score[away_team_id])
-        cutoff_index += 1
-
-    return timeline, (score[home_team_id], score[away_team_id])
+    final_home = sum(scoring_team == home_team_id for _, scoring_team, _ in credits)
+    final_away = sum(scoring_team == away_team_id for _, scoring_team, _ in credits)
+    return timeline, (int(final_home), int(final_away))
 
 
 def repair_live_score_integrity(
