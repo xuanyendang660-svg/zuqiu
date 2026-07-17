@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pandas as pd
-
 from .live_snapshots import LiveSnapshotDataset, _absolute_minute
 from .wyscout_events import (
     WyscoutIndexRecord,
