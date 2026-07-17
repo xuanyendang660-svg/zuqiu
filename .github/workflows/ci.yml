@@ -59,7 +59,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[dev]" kloppy>=3.19
+      - run: pip install -e ".[dev]" "kloppy>=3.19"
       - uses: actions/cache@v4
         with:
           path: .cache/wyscout-repo
@@ -71,17 +71,22 @@ jobs:
             git clone --depth 1 https://github.com/koenvo/wyscout-soccer-match-event-dataset.git .cache/wyscout-repo
           fi
       - name: Run full-season event-tail walk-forward test
-        run: >-
-          python scripts/run_wyscout_event_backtest.py
-          --data-root .cache/wyscout-repo
-          --workers 8
-          --folds 3
-          --initial-train-fraction 0.55
-          --output artifacts/wyscout_event_tail.json
-      - name: Print Wyscout event-tail report
-        run: cat artifacts/wyscout_event_tail.json
+        run: |
+          mkdir -p artifacts
+          set +e
+          python scripts/run_wyscout_event_backtest.py \
+            --data-root .cache/wyscout-repo \
+            --workers 8 \
+            --folds 3 \
+            --initial-train-fraction 0.55 \
+            --output artifacts/wyscout_event_tail.json \
+            > artifacts/wyscout_run.log 2>&1
+          status=$?
+          cat artifacts/wyscout_run.log
+          exit $status
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: wyscout-event-tail-report
-          path: artifacts/wyscout_event_tail.json
+          name: wyscout-event-tail-diagnostics
+          path: artifacts/
           retention-days: 14
