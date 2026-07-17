@@ -23,6 +23,8 @@ def _event(
     if own_goal:
         tags.append({"id": 102})
     return {
+        "eventId": 10,
+        "subEventId": 100,
         "matchPeriod": "1H" if minute <= 45 else "2H",
         "eventSec": minute * 60 if minute <= 45 else (minute - 45) * 60,
         "teamId": team_id,
