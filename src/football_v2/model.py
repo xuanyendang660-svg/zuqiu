@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.utils.validation import check_is_fitted
 
 from .labels import ScoreArchetype, classify_score, label_to_score, score_to_label
@@ -42,6 +43,7 @@ class TailAwareExactScoreModel:
             "random_state": self.config.random_state,
             "n_jobs": -1,
         }
+        self.imputer = SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True)
         self.exact_model = RandomForestClassifier(**forest_args)
         self.archetype_model = RandomForestClassifier(**forest_args)
         self._score_grid = tuple(
@@ -57,8 +59,8 @@ class TailAwareExactScoreModel:
             array = array.reshape(1, -1)
         if array.ndim != 2 or array.shape[1] == 0:
             raise ValueError("features must be a non-empty 2D array")
-        if not np.all(np.isfinite(array)):
-            raise ValueError("features contain non-finite values")
+        if np.any(np.isinf(array)):
+            raise ValueError("features contain infinite values")
         return array
 
     def fit(
@@ -67,16 +69,17 @@ class TailAwareExactScoreModel:
         home_goals: np.ndarray,
         away_goals: np.ndarray,
     ) -> "TailAwareExactScoreModel":
-        x = self._features(features)
+        raw = self._features(features)
         home = np.asarray(home_goals, dtype=int)
         away = np.asarray(away_goals, dtype=int)
-        if home.ndim != 1 or away.ndim != 1 or len(home) != len(away) or len(home) != len(x):
+        if home.ndim != 1 or away.ndim != 1 or len(home) != len(away) or len(home) != len(raw):
             raise ValueError("features and goal arrays must have matching rows")
         if np.any(home < 0) or np.any(away < 0):
             raise ValueError("goals cannot be negative")
         if np.any(home > self.config.max_goals) or np.any(away > self.config.max_goals):
             raise ValueError("training goals exceed configured score grid")
 
+        x = self.imputer.fit_transform(raw)
         exact_labels = np.array(
             [score_to_label(int(h), int(a)) for h, a in zip(home, away, strict=True)]
         )
@@ -85,18 +88,21 @@ class TailAwareExactScoreModel:
         )
         self.exact_model.fit(x, exact_labels)
         self.archetype_model.fit(x, archetype_labels)
+        self.n_raw_features_in_ = raw.shape[1]
         self.n_features_in_ = x.shape[1]
         return self
 
     def _check(self) -> None:
+        check_is_fitted(self.imputer)
         check_is_fitted(self.exact_model)
         check_is_fitted(self.archetype_model)
 
     def predict_distribution(self, features: np.ndarray) -> np.ndarray:
         self._check()
-        x = self._features(features)
-        if x.shape[1] != self.n_features_in_:
+        raw = self._features(features)
+        if raw.shape[1] != self.n_raw_features_in_:
             raise ValueError("feature count differs from training data")
+        x = self.imputer.transform(raw)
 
         exact_probabilities = self.exact_model.predict_proba(x)
         archetype_probabilities = self.archetype_model.predict_proba(x)
