@@ -20,9 +20,6 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.6",
 ]
-realdata = [
-  "premier-league-data @ git+https://github.com/AnishKhetani/premier-league-data.git",
-]
 
 [project.scripts]
 football-v2 = "football_v2.cli:main"
