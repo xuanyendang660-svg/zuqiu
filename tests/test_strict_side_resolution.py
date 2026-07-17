@@ -23,6 +23,20 @@ def _shot(team_id: int, tags: tuple[int, ...], second: int) -> dict[str, object]
     }
 
 
+def _keeper_goal(team_id: int, second: int) -> dict[str, object]:
+    return {
+        "eventId": 9,
+        "subEventId": 91,
+        "teamId": team_id,
+        "matchPeriod": "1H",
+        "eventSec": second,
+        "eventName": "Save attempt",
+        "subEventName": "Save attempt",
+        "tags": [{"id": 101}],
+        "positions": [{"x": 0, "y": 50}, {"x": 10, "y": 50}],
+    }
+
+
 def _write_events(
     path: Path,
     events: list[tuple[int, tuple[int, ...]]],
@@ -91,20 +105,7 @@ def test_strict_resolver_propagates_team_ids_into_draw(tmp_path: Path) -> None:
 
 def test_goalkeeper_failed_save_tag_does_not_add_a_goal(tmp_path: Path) -> None:
     path = tmp_path / "3.json"
-    payload = [
-        _shot(11, (101,), 60),
-        {
-            "eventId": 9,
-            "subEventId": 91,
-            "teamId": 22,
-            "matchPeriod": "1H",
-            "eventSec": 61,
-            "eventName": "Save attempt",
-            "subEventName": "Save attempt",
-            "tags": [{"id": 101}],
-            "positions": [{"x": 0, "y": 50}, {"x": 10, "y": 50}],
-        },
-    ]
+    payload = [_shot(11, (101,), 60), _keeper_goal(22, 61)]
     path.write_text(json.dumps(payload), encoding="utf-8")
     record = WyscoutIndexRecord(
         match_id=3,
@@ -115,6 +116,34 @@ def test_goalkeeper_failed_save_tag_does_not_add_a_goal(tmp_path: Path) -> None:
         away_name="Beta",
         home_score=1,
         away_score=0,
+    )
+
+    resolved = resolve_wyscout_sides_strict([record])
+
+    assert resolved[0].home_team_id == 11
+    assert resolved[0].away_team_id == 22
+
+
+def test_orphan_goalkeeper_event_credits_opponent(tmp_path: Path) -> None:
+    path = tmp_path / "5.json"
+    payload = {
+        "events": [_shot(11, tuple(), 60), _keeper_goal(11, 120)],
+        "teams": {
+            "11": {"team": {"wyId": 11, "officialName": "Alpha"}},
+            "22": {"team": {"wyId": 22, "officialName": "Beta"}},
+        },
+        "players": {"11": [], "22": []},
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    record = WyscoutIndexRecord(
+        match_id=5,
+        path=path,
+        date=pd.Timestamp("2017-08-30"),
+        source="matches_England.json",
+        home_name="Alpha",
+        away_name="Beta",
+        home_score=0,
+        away_score=1,
     )
 
     resolved = resolve_wyscout_sides_strict([record])
