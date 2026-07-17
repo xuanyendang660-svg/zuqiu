@@ -49,13 +49,21 @@ def _processed_v2_ordered_sides(payload: object) -> tuple[int, int] | None:
     return ordered_ids[0], ordered_ids[1]
 
 
-def _is_scoring_goal_event(event: dict[str, object]) -> bool:
-    """Identify scoring events without counting failed goalkeeper saves.
+def _event_clock_seconds(event: dict[str, object]) -> float:
+    period = str(event.get("matchPeriod") or "1H")
+    offset = {
+        "1H": 0.0,
+        "2H": 45.0 * 60.0,
+        "E1": 90.0 * 60.0,
+        "ET1": 90.0 * 60.0,
+        "E2": 105.0 * 60.0,
+        "ET2": 105.0 * 60.0,
+    }.get(period, 0.0)
+    return offset + float(event.get("eventSec") or 0.0)
 
-    Tag 101 also appears on the conceding goalkeeper event. Own goals, however,
-    are attached to the defender's touch, clearance, or pass and must be
-    credited to the opponent regardless of the event family.
-    """
+
+def _is_primary_scoring_event(event: dict[str, object]) -> bool:
+    """Identify scoring actions while excluding goalkeeper save events."""
 
     tags = _event_tags(event)
     if _OWN_GOAL_TAG in tags:
@@ -69,26 +77,77 @@ def _is_scoring_goal_event(event: dict[str, object]) -> bool:
     )
 
 
+def _opponent(team_id: int, team_ids: tuple[int, int]) -> int:
+    first, second = team_ids
+    if team_id == first:
+        return second
+    if team_id == second:
+        return first
+    raise ValueError(f"team {team_id} not in match teams")
+
+
+def _credited_goal_events(
+    events: list[dict[str, object]],
+    team_ids: tuple[int, ...],
+) -> list[tuple[float, int, str]]:
+    """Return one credited scoring event per actual goal.
+
+    Most goals have both a scoring action and a goalkeeper event tagged 101.
+    The goalkeeper event is ignored when a primary scoring action exists nearby.
+    A tiny number of feeds omit the shot and retain only the failed save; those
+    orphan goalkeeper events are credited to the opponent.
+    """
+
+    if len(team_ids) != 2:
+        return []
+    pair = (int(team_ids[0]), int(team_ids[1]))
+    primary: list[tuple[float, int, str]] = []
+    goalkeeper_candidates: list[tuple[float, int]] = []
+
+    for event in events:
+        team_value = event.get("teamId")
+        if team_value is None:
+            continue
+        team_id = int(team_value)
+        if team_id not in pair:
+            continue
+        tags = _event_tags(event)
+        clock = _event_clock_seconds(event)
+        if _is_primary_scoring_event(event):
+            scoring_team = (
+                _opponent(team_id, pair)
+                if _OWN_GOAL_TAG in tags
+                else team_id
+            )
+            source = "own_goal" if _OWN_GOAL_TAG in tags else "scoring_action"
+            primary.append((clock, scoring_team, source))
+        elif int(event.get("eventId") or -1) == 9 and _GOAL_TAG in tags:
+            goalkeeper_candidates.append((clock, team_id))
+
+    credits = list(primary)
+    primary_times = [clock for clock, _, _ in primary]
+    orphan_credits: list[tuple[float, int, str]] = []
+    for clock, goalkeeper_team in goalkeeper_candidates:
+        if any(abs(clock - primary_clock) <= 8.0 for primary_clock in primary_times):
+            continue
+        scoring_team = _opponent(goalkeeper_team, pair)
+        duplicate = any(
+            abs(clock - existing_clock) <= 8.0 and existing_team == scoring_team
+            for existing_clock, existing_team, _ in orphan_credits
+        )
+        if not duplicate:
+            orphan_credits.append((clock, scoring_team, "orphan_goalkeeper"))
+    credits.extend(orphan_credits)
+    credits.sort(key=lambda item: item[0])
+    return credits
+
+
 def _credited_goal_counts(
     events: list[dict[str, object]],
     team_ids: tuple[int, ...],
 ) -> dict[int, int]:
     counts = {team_id: 0 for team_id in team_ids}
-    if len(team_ids) != 2:
-        return counts
-    first, second = team_ids
-    for event in events:
-        team_value = event.get("teamId")
-        if team_value is None or not _is_scoring_goal_event(event):
-            continue
-        team_id = int(team_value)
-        if team_id not in counts:
-            continue
-        tags = _event_tags(event)
-        if _OWN_GOAL_TAG in tags:
-            scoring_team = second if team_id == first else first
-        else:
-            scoring_team = team_id
+    for _, scoring_team, _ in _credited_goal_events(events, team_ids):
         counts[scoring_team] += 1
     return counts
 
