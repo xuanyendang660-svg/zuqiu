@@ -48,3 +48,34 @@ jobs:
           name: epl-v2-backtest-and-model
           path: artifacts/
           retention-days: 14
+
+  statsbomb-event-tail-backtest:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+      - uses: actions/cache@v4
+        with:
+          path: .cache/statsbomb
+          key: statsbomb-la-liga-2018-2021-v1
+      - name: Download events and run event-tail walk-forward test
+        run: >-
+          python scripts/run_statsbomb_event_backtest.py
+          --selections 11:4,11:42,11:90
+          --max-matches 900
+          --workers 16
+          --folds 2
+          --output artifacts/statsbomb_event_tail.json
+      - name: Print event-tail report
+        run: cat artifacts/statsbomb_event_tail.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: statsbomb-event-tail-report
+          path: artifacts/statsbomb_event_tail.json
+          retention-days: 14
