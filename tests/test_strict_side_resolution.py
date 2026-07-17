@@ -124,7 +124,7 @@ def test_goalkeeper_failed_save_tag_does_not_add_a_goal(tmp_path: Path) -> None:
     assert resolved[0].away_team_id == 22
 
 
-def test_orphan_goalkeeper_event_credits_opponent(tmp_path: Path) -> None:
+def test_orphan_goalkeeper_event_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "5.json"
     payload = {
         "events": [
@@ -150,10 +150,12 @@ def test_orphan_goalkeeper_event_credits_opponent(tmp_path: Path) -> None:
         away_score=1,
     )
 
-    resolved = resolve_wyscout_sides_strict([record])
-
-    assert resolved[0].home_team_id == 11
-    assert resolved[0].away_team_id == 22
+    try:
+        resolve_wyscout_sides_strict([record])
+    except RuntimeError as exc:
+        assert "credited score 0-0 != index score 0-1" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected unverifiable match rejection")
 
 
 def test_processed_v2_team_order_resolves_scoreless_draw(tmp_path: Path) -> None:
