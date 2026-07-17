@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,3 +17,32 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: pytest
+
+  real-data-backtest:
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev,realdata]"
+      - name: Walk-forward train and benchmark on real EPL data
+        run: >-
+          football-v2 backtest-real
+          --start-date 2000-01-01
+          --folds 2
+          --trees 80
+          --min-leaf 3
+          --top-k 5
+          --output artifacts/epl_backtest.json
+          --model-output artifacts/epl_model.joblib
+      - name: Print benchmark report
+        run: cat artifacts/epl_backtest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: epl-v2-backtest-and-model
+          path: artifacts/
+          retention-days: 14
