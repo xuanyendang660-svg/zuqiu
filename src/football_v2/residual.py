@@ -7,8 +7,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.utils.validation import check_is_fitted
 
-from .benchmark import DistributionMetrics, evaluate_matrices
 from .labels import ScoreArchetype, classify_score, label_to_score, score_to_label
+from .metrics import DistributionMetrics, evaluate_matrices
 
 
 @dataclass(frozen=True)
@@ -18,9 +18,11 @@ class ResidualConfig:
     min_samples_leaf: int = 3
     random_state: int = 42
     calibration_fraction: float = 0.20
-    alpha_grid: tuple[float, ...] = (0.0, 0.15, 0.30, 0.50, 0.75, 1.0)
-    beta_grid: tuple[float, ...] = (0.0, 0.05, 0.10, 0.20)
-    tail_boost_grid: tuple[float, ...] = (1.0, 1.10, 1.25, 1.50)
+    alpha_grid: tuple[float, ...] = (0.50, 0.75, 1.0)
+    beta_grid: tuple[float, ...] = (0.0, 0.10)
+    tail_boost_grid: tuple[float, ...] = (1.25, 1.50)
+    gate_ratio_grid: tuple[float, ...] = (1.50, 2.50, 4.00)
+    min_tail_probability_grid: tuple[float, ...] = (0.15, 0.25)
     probability_floor: float = 1e-8
 
 
@@ -29,17 +31,20 @@ class ResidualSelection:
     alpha: float
     beta: float
     tail_boost: float
+    gate_ratio: float
+    min_tail_probability: float
+    calibration_override_rate: float
     calibration_metrics: DistributionMetrics
     calibration_market_metrics: DistributionMetrics
 
 
 class MarketResidualScoreModel:
-    """Learn only the residual around a strong market/DC score distribution.
+    """Selectively override a market/DC score grid on high-confidence tail cases.
 
-    The market-conditioned Dixon-Coles grid remains the base. Learned exact-score
-    and archetype probabilities are applied as likelihood ratios. Calibration
-    chooses the strongest tail correction that stays close to the market on
-    exact accuracy, Top-K accuracy, direction and log loss.
+    Most matches remain exactly equal to the market-conditioned Dixon-Coles base.
+    A learned residual is activated only when its tail probability is both high
+    in absolute terms and high relative to the market tail mass. This prevents
+    tail recall from being purchased by degrading ordinary matches globally.
     """
 
     _TAILS = {
@@ -61,7 +66,9 @@ class MarketResidualScoreModel:
             "random_state": self.config.random_state,
             "n_jobs": -1,
         }
-        self.imputer = SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True)
+        self.imputer = SimpleImputer(
+            strategy="median", add_indicator=True, keep_empty_features=True
+        )
         self.exact_model = RandomForestClassifier(**forest_args)
         self.archetype_model = RandomForestClassifier(**forest_args)
         self._score_grid = tuple(
@@ -72,6 +79,9 @@ class MarketResidualScoreModel:
         self._archetype_masks = {
             archetype: self._mask_for(archetype) for archetype in ScoreArchetype
         }
+        self._tail_mask = np.logical_or.reduce(
+            [self._archetype_masks[archetype] for archetype in self._TAILS]
+        )
 
     def _mask_for(self, archetype: ScoreArchetype) -> np.ndarray:
         mask = np.zeros(
@@ -101,10 +111,16 @@ class MarketResidualScoreModel:
     ) -> None:
         x = self.imputer.fit_transform(features)
         exact_labels = np.array(
-            [score_to_label(int(h), int(a)) for h, a in zip(home_goals, away_goals, strict=True)]
+            [
+                score_to_label(int(home), int(away))
+                for home, away in zip(home_goals, away_goals, strict=True)
+            ]
         )
         archetype_labels = np.array(
-            [classify_score(int(h), int(a)).value for h, a in zip(home_goals, away_goals, strict=True)]
+            [
+                classify_score(int(home), int(away)).value
+                for home, away in zip(home_goals, away_goals, strict=True)
+            ]
         )
         self.exact_model.fit(x, exact_labels)
         self.archetype_model.fit(x, archetype_labels)
@@ -131,17 +147,37 @@ class MarketResidualScoreModel:
         alpha: float,
         beta: float,
         tail_boost: float,
-    ) -> np.ndarray:
+        gate_ratio: float,
+        min_tail_probability: float,
+    ) -> tuple[np.ndarray, np.ndarray]:
         if len(base_distributions) != len(exact_probabilities):
             raise ValueError("base distributions and features must have matching rows")
         output = np.empty_like(base_distributions, dtype=float)
+        override = np.zeros(len(base_distributions), dtype=bool)
         epsilon = self.config.probability_floor
+        archetype_indices = {label: index for index, label in enumerate(archetype_classes)}
 
         for row, base in enumerate(base_distributions):
-            matrix = np.asarray(base, dtype=float).copy()
-            matrix = np.clip(matrix, epsilon, None)
-            matrix /= matrix.sum()
+            market = np.asarray(base, dtype=float).copy()
+            market = np.clip(market, epsilon, None)
+            market /= market.sum()
+            learned_tail_probability = sum(
+                float(archetype_probabilities[row, archetype_indices[archetype.value]])
+                for archetype in self._TAILS
+                if archetype.value in archetype_indices
+            )
+            market_tail_probability = float(market[self._tail_mask].sum())
+            tail_ratio = learned_tail_probability / max(market_tail_probability, epsilon)
+            should_override = (
+                learned_tail_probability >= min_tail_probability
+                and tail_ratio >= gate_ratio
+            )
+            if not should_override:
+                output[row] = market
+                continue
 
+            override[row] = True
+            matrix = market.copy()
             exact_model_grid = np.full(matrix.shape, epsilon, dtype=float)
             for score, probability in zip(
                 exact_classes, exact_probabilities[row], strict=True
@@ -165,22 +201,22 @@ class MarketResidualScoreModel:
                 learned_mass = archetype_targets.get(archetype.value, epsilon)
                 if archetype in self._TAILS:
                     learned_mass *= tail_boost
-                if alpha > 0 and base_mass > 0:
+                if base_mass > 0:
                     ratio = np.clip(learned_mass / base_mass, 1e-3, 1e3)
                     matrix[mask] *= ratio**alpha
             matrix /= matrix.sum()
             output[row] = matrix
-        return output
+        return output, override
 
     @staticmethod
     def _is_feasible(
         candidate: DistributionMetrics, market: DistributionMetrics
     ) -> bool:
         return (
-            candidate.exact_accuracy >= market.exact_accuracy - 0.004
-            and candidate.top_k_accuracy >= market.top_k_accuracy - 0.010
-            and candidate.direction_accuracy >= market.direction_accuracy - 0.020
-            and candidate.negative_log_likelihood <= market.negative_log_likelihood + 0.030
+            candidate.exact_accuracy >= market.exact_accuracy - 0.002
+            and candidate.top_k_accuracy >= market.top_k_accuracy - 0.005
+            and candidate.direction_accuracy >= market.direction_accuracy - 0.010
+            and candidate.negative_log_likelihood <= market.negative_log_likelihood + 0.010
         )
 
     @staticmethod
@@ -200,10 +236,11 @@ class MarketResidualScoreModel:
         base = np.asarray(base_distributions, dtype=float)
         if len(raw) != len(home) or len(home) != len(away) or len(home) != len(base):
             raise ValueError("training arrays must have matching rows")
-        if base.shape[1:] != (
+        expected_shape = (
             self.config.max_goals + 1,
             self.config.max_goals + 1,
-        ):
+        )
+        if base.shape[1:] != expected_shape:
             raise ValueError("base score grid differs from model configuration")
 
         calibration_rows = max(100, int(len(raw) * self.config.calibration_fraction))
@@ -212,40 +249,78 @@ class MarketResidualScoreModel:
             raise ValueError("insufficient data for residual calibration")
 
         self._fit_probability_models(raw[:split], home[:split], away[:split])
-        exact, exact_classes, archetype, archetype_classes = self._probability_tables(raw[split:])
+        exact, exact_classes, archetype, archetype_classes = self._probability_tables(
+            raw[split:]
+        )
         market_metrics = evaluate_matrices(base[split:], home[split:], away[split:])
-        candidates: list[tuple[ResidualSelection, tuple[float, float, float, float, float]]] = []
+        candidates: list[
+            tuple[ResidualSelection, tuple[float, float, float, float, float, float]]
+        ] = []
+
+        baseline_selection = ResidualSelection(
+            alpha=0.0,
+            beta=0.0,
+            tail_boost=1.0,
+            gate_ratio=float("inf"),
+            min_tail_probability=1.0,
+            calibration_override_rate=0.0,
+            calibration_metrics=market_metrics,
+            calibration_market_metrics=market_metrics,
+        )
+        candidates.append(
+            (
+                baseline_selection,
+                (
+                    1.0,
+                    self._tail_value(market_metrics),
+                    market_metrics.exact_accuracy,
+                    market_metrics.top_k_accuracy,
+                    -market_metrics.negative_log_likelihood,
+                    0.0,
+                ),
+            )
+        )
 
         for alpha in self.config.alpha_grid:
             for beta in self.config.beta_grid:
                 for tail_boost in self.config.tail_boost_grid:
-                    adjusted = self._combine(
-                        base[split:],
-                        exact,
-                        exact_classes,
-                        archetype,
-                        archetype_classes,
-                        alpha=alpha,
-                        beta=beta,
-                        tail_boost=tail_boost,
-                    )
-                    metrics = evaluate_matrices(adjusted, home[split:], away[split:])
-                    selection = ResidualSelection(
-                        alpha=alpha,
-                        beta=beta,
-                        tail_boost=tail_boost,
-                        calibration_metrics=metrics,
-                        calibration_market_metrics=market_metrics,
-                    )
-                    feasible = self._is_feasible(metrics, market_metrics)
-                    score = (
-                        1.0 if feasible else 0.0,
-                        self._tail_value(metrics),
-                        metrics.exact_accuracy,
-                        metrics.top_k_accuracy,
-                        -metrics.negative_log_likelihood,
-                    )
-                    candidates.append((selection, score))
+                    for gate_ratio in self.config.gate_ratio_grid:
+                        for minimum in self.config.min_tail_probability_grid:
+                            adjusted, override = self._combine(
+                                base[split:],
+                                exact,
+                                exact_classes,
+                                archetype,
+                                archetype_classes,
+                                alpha=alpha,
+                                beta=beta,
+                                tail_boost=tail_boost,
+                                gate_ratio=gate_ratio,
+                                min_tail_probability=minimum,
+                            )
+                            metrics = evaluate_matrices(
+                                adjusted, home[split:], away[split:]
+                            )
+                            selection = ResidualSelection(
+                                alpha=alpha,
+                                beta=beta,
+                                tail_boost=tail_boost,
+                                gate_ratio=gate_ratio,
+                                min_tail_probability=minimum,
+                                calibration_override_rate=float(np.mean(override)),
+                                calibration_metrics=metrics,
+                                calibration_market_metrics=market_metrics,
+                            )
+                            feasible = self._is_feasible(metrics, market_metrics)
+                            score = (
+                                1.0 if feasible else 0.0,
+                                self._tail_value(metrics),
+                                metrics.exact_accuracy,
+                                metrics.top_k_accuracy,
+                                -metrics.negative_log_likelihood,
+                                -float(np.mean(override)),
+                            )
+                            candidates.append((selection, score))
 
         self.selection_ = max(candidates, key=lambda item: item[1])[0]
         self._fit_probability_models(raw, home, away)
@@ -266,7 +341,7 @@ class MarketResidualScoreModel:
         if raw.shape[1] != self.n_raw_features_in_:
             raise ValueError("feature count differs from training data")
         exact, exact_classes, archetype, archetype_classes = self._probability_tables(raw)
-        return self._combine(
+        result, _ = self._combine(
             np.asarray(base_distributions, dtype=float),
             exact,
             exact_classes,
@@ -275,4 +350,27 @@ class MarketResidualScoreModel:
             alpha=self.selection_.alpha,
             beta=self.selection_.beta,
             tail_boost=self.selection_.tail_boost,
+            gate_ratio=self.selection_.gate_ratio,
+            min_tail_probability=self.selection_.min_tail_probability,
         )
+        return result
+
+    def override_mask(
+        self, features: np.ndarray, base_distributions: np.ndarray
+    ) -> np.ndarray:
+        self._check()
+        raw = self._features(features)
+        exact, exact_classes, archetype, archetype_classes = self._probability_tables(raw)
+        _, override = self._combine(
+            np.asarray(base_distributions, dtype=float),
+            exact,
+            exact_classes,
+            archetype,
+            archetype_classes,
+            alpha=self.selection_.alpha,
+            beta=self.selection_.beta,
+            tail_boost=self.selection_.tail_boost,
+            gate_ratio=self.selection_.gate_ratio,
+            min_tail_probability=self.selection_.min_tail_probability,
+        )
+        return override
