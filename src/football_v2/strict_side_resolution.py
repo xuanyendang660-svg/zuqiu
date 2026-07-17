@@ -26,6 +26,34 @@ def _team_ids(events: list[dict[str, object]]) -> tuple[int, ...]:
     )
 
 
+def _processed_v2_ordered_sides(payload: object) -> tuple[int, int] | None:
+    """Read the home-away order written by the processed-v2 generator.
+
+    The source processor constructs the teams dictionary by inserting the
+    home team first and the away team second. Python JSON serialization keeps
+    that insertion order. This is more authoritative than guessing from IDs.
+    """
+
+    if not isinstance(payload, dict):
+        return None
+    teams = payload.get("teams")
+    if not isinstance(teams, dict) or len(teams) != 2:
+        return None
+    ordered_ids: list[int] = []
+    for key, value in teams.items():
+        if not isinstance(value, dict) or not isinstance(value.get("team"), dict):
+            return None
+        try:
+            team_id = int(key)
+        except (TypeError, ValueError):
+            raw_id = value["team"].get("wyId")
+            if raw_id is None:
+                return None
+            team_id = int(raw_id)
+        ordered_ids.append(team_id)
+    return ordered_ids[0], ordered_ids[1]
+
+
 def _credited_goal_counts(
     events: list[dict[str, object]],
     team_ids: tuple[int, ...],
@@ -92,12 +120,14 @@ def resolve_wyscout_sides_strict(
         events = _payload_events(payload)
         team_ids = _team_ids(events)
         counts = _credited_goal_counts(events, team_ids)
+        explicit_sides = _processed_v2_ordered_sides(payload)
         metadata_sides = _team_side_metadata(payload)
-        summaries[record.match_id] = (team_ids, counts, metadata_sides)
+        preferred_sides = explicit_sides or metadata_sides
+        summaries[record.match_id] = (team_ids, counts, preferred_sides)
 
         sides: tuple[int, int] | None = None
-        if metadata_sides is not None:
-            sides = (int(metadata_sides[0]), int(metadata_sides[1]))
+        if preferred_sides is not None:
+            sides = (int(preferred_sides[0]), int(preferred_sides[1]))
         elif len(team_ids) == 2:
             first, second = team_ids
             possibilities = [
