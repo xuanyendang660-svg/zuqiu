@@ -63,14 +63,15 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .cache/statsbomb
-          key: statsbomb-la-liga-2018-2021-v1
+          key: statsbomb-bundesliga-2015-2024-v1
       - name: Download events and run event-tail walk-forward test
         run: >-
           python scripts/run_statsbomb_event_backtest.py
-          --selections 11:4,11:42,11:90
-          --max-matches 900
-          --workers 16
+          --selections 9:27,9:281
+          --max-matches 650
+          --workers 10
           --folds 2
+          --initial-train-fraction 0.60
           --output artifacts/statsbomb_event_tail.json
       - name: Print event-tail report
         run: cat artifacts/statsbomb_event_tail.json
