@@ -66,6 +66,17 @@ jobs:
           status=$?
           cat artifacts/wyscout_cold_blowout_strict_audit.log
           exit $status
+      - name: Run outcome-independent clean audit
+        run: |
+          set +e
+          python scripts/run_wyscout_cold_blowout_clean_audit.py \
+            --data-root .cache/wyscout-repo \
+            --workers 8 \
+            --output artifacts/wyscout_cold_blowout_clean_audit.json \
+            > artifacts/wyscout_cold_blowout_clean_audit.log 2>&1
+          status=$?
+          cat artifacts/wyscout_cold_blowout_clean_audit.log
+          exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
