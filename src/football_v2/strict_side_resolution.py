@@ -27,12 +27,7 @@ def _team_ids(events: list[dict[str, object]]) -> tuple[int, ...]:
 
 
 def _processed_v2_ordered_sides(payload: object) -> tuple[int, int] | None:
-    """Read the home-away order written by the processed-v2 generator.
-
-    The source processor constructs the teams dictionary by inserting the
-    home team first and the away team second. Python JSON serialization keeps
-    that insertion order. This is more authoritative than guessing from IDs.
-    """
+    """Read the home-away order written by the processed-v2 generator."""
 
     if not isinstance(payload, dict):
         return None
@@ -54,6 +49,21 @@ def _processed_v2_ordered_sides(payload: object) -> tuple[int, int] | None:
     return ordered_ids[0], ordered_ids[1]
 
 
+def _is_scoring_goal_event(event: dict[str, object]) -> bool:
+    """Return true only for shot-like events that actually create a goal.
+
+    Wyscout also puts tag 101 on the opposing goalkeeper's failed save event.
+    Counting every tagged event therefore double-counts each goal for both teams.
+    """
+
+    tags = _event_tags(event)
+    if _GOAL_TAG not in tags and _OWN_GOAL_TAG not in tags:
+        return False
+    event_id = int(event.get("eventId") or -1)
+    sub_event_id = int(event.get("subEventId") or -1)
+    return event_id == 10 or (event_id == 3 and sub_event_id in {33, 35})
+
+
 def _credited_goal_counts(
     events: list[dict[str, object]],
     team_ids: tuple[int, ...],
@@ -64,16 +74,13 @@ def _credited_goal_counts(
     first, second = team_ids
     for event in events:
         team_value = event.get("teamId")
-        if team_value is None:
+        if team_value is None or not _is_scoring_goal_event(event):
             continue
         team_id = int(team_value)
         if team_id not in counts:
             continue
         tags = _event_tags(event)
-        own_goal = _OWN_GOAL_TAG in tags
-        if _GOAL_TAG not in tags and not own_goal:
-            continue
-        if own_goal:
+        if _OWN_GOAL_TAG in tags:
             scoring_team = second if team_id == first else first
         else:
             scoring_team = team_id
