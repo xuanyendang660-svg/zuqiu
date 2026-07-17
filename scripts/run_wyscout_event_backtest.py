@@ -4,14 +4,33 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
+
 from football_v2.event_tail_model import EventTailConfig, walk_forward_event_tail_test
 from football_v2.market_event_data import join_market_events, load_market_1718
 from football_v2.market_event_experiment import walk_forward_market_event_test
 from football_v2.wyscout_events import (
+    WyscoutIndexRecord,
     build_wyscout_event_dataset,
     load_wyscout_index,
     load_wyscout_league_matches,
 )
+
+
+def _normalise_index_dates(records: list[WyscoutIndexRecord]) -> list[WyscoutIndexRecord]:
+    return [
+        WyscoutIndexRecord(
+            match_id=record.match_id,
+            path=record.path,
+            date=pd.Timestamp(record.date).normalize(),
+            source=record.source,
+            home_name=record.home_name,
+            away_name=record.away_name,
+            home_score=record.home_score,
+            away_score=record.away_score,
+        )
+        for record in records
+    ]
 
 
 def main() -> None:
@@ -25,7 +44,7 @@ def main() -> None:
     parser.add_argument("--output", default="artifacts/wyscout_event_tail.json")
     args = parser.parse_args()
 
-    index_records = load_wyscout_index(args.data_root)
+    index_records = _normalise_index_dates(load_wyscout_index(args.data_root))
     matches = load_wyscout_league_matches(
         args.data_root,
         workers=args.workers,
