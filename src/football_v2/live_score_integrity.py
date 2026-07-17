@@ -42,10 +42,12 @@ def _score_timeline(
         if team_id not in score:
             continue
         tags = _event_tags(event)
-        if _GOAL_TAG not in tags:
+        is_own_goal = _OWN_GOAL_TAG in tags
+        is_goal = _GOAL_TAG in tags or is_own_goal
+        if not is_goal:
             continue
 
-        if _OWN_GOAL_TAG in tags:
+        if is_own_goal:
             scoring_team = away_team_id if team_id == home_team_id else home_team_id
         else:
             scoring_team = team_id
