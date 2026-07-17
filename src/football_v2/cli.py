@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
-from .benchmark import walk_forward_benchmark
+from .benchmark import baseline_distributions
 from .dataset import HistoricalDataset, build_historical_dataset, load_premier_league_frame
-from .model import ModelConfig
 from .persistence import ModelBundle, load_bundle, save_bundle
+from .residual import MarketResidualScoreModel, ResidualConfig
+from .residual_benchmark import walk_forward_residual_benchmark
 
 
 def _season_list(value: str | None) -> list[str] | None:
@@ -33,17 +35,17 @@ def _backtest_real(args: argparse.Namespace) -> None:
     if args.start_date:
         selected = dataset.frame[dataset.frame["date"] >= args.start_date].reset_index(drop=True)
         dataset = HistoricalDataset(selected, dataset.feature_columns)
-    config = ModelConfig(
+    config = ResidualConfig(
         max_goals=args.max_goals,
         n_estimators=args.trees,
         min_samples_leaf=args.min_leaf,
         random_state=args.seed,
     )
-    report, model = walk_forward_benchmark(
+    report, model = walk_forward_residual_benchmark(
         dataset,
         folds=args.folds,
         initial_train_fraction=args.initial_train_fraction,
-        model_config=config,
+        residual_config=config,
         top_k=args.top_k,
     )
     payload = report.to_dict()
@@ -55,6 +57,14 @@ def _backtest_real(args: argparse.Namespace) -> None:
         "source": "premier-league-data / football-data.co.uk",
     }
     payload["model_config"] = asdict(config)
+    payload["walk_forward_residual_selections"] = getattr(
+        model, "walk_forward_selections_", []
+    )
+    payload["final_residual_selection"] = {
+        "alpha": model.selection_.alpha,
+        "beta": model.selection_.beta,
+        "tail_boost": model.selection_.tail_boost,
+    }
     output = Path(args.output)
     bundle_path = Path(args.model_output)
     save_bundle(
@@ -63,6 +73,7 @@ def _backtest_real(args: argparse.Namespace) -> None:
             feature_columns=dataset.feature_columns,
             metadata={
                 "version": "0.2.0",
+                "model_type": "market_residual",
                 "training_rows": len(dataset.frame),
                 "first_date": payload["dataset"]["first_date"],
                 "last_date": payload["dataset"]["last_date"],
@@ -75,19 +86,33 @@ def _backtest_real(args: argparse.Namespace) -> None:
     _json_dump(payload, output)
 
 
-def _predict_json(args: argparse.Namespace) -> None:
-    bundle = load_bundle(args.model)
-    raw = json.loads(Path(args.features).read_text(encoding="utf-8"))
-    records = raw if isinstance(raw, list) else [raw]
-    matrix = np.full((len(records), len(bundle.feature_columns)), np.nan, dtype=float)
+def _records_to_matrix(
+    records: list[dict[str, object]], feature_columns: tuple[str, ...]
+) -> np.ndarray:
+    matrix = np.full((len(records), len(feature_columns)), np.nan, dtype=float)
     for row_index, record in enumerate(records):
-        if not isinstance(record, dict):
-            raise ValueError("each feature record must be a JSON object")
-        for column_index, name in enumerate(bundle.feature_columns):
+        for column_index, name in enumerate(feature_columns):
             value = record.get(name)
             if value is not None:
                 matrix[row_index, column_index] = float(value)
-    distributions = bundle.model.predict_distribution(matrix)
+    return matrix
+
+
+def _predict_json(args: argparse.Namespace) -> None:
+    bundle = load_bundle(args.model)
+    if not isinstance(bundle.model, MarketResidualScoreModel):
+        raise TypeError("saved model is not the market-residual v2 model")
+    raw = json.loads(Path(args.features).read_text(encoding="utf-8"))
+    records = raw if isinstance(raw, list) else [raw]
+    if not all(isinstance(record, dict) for record in records):
+        raise ValueError("each feature record must be a JSON object")
+    typed_records = [dict(record) for record in records]
+    matrix = _records_to_matrix(typed_records, bundle.feature_columns)
+    feature_frame = pd.DataFrame(matrix, columns=bundle.feature_columns)
+    base = baseline_distributions(
+        HistoricalDataset(feature_frame, bundle.feature_columns), kind="market"
+    )
+    distributions = bundle.model.predict_distribution(matrix, base)
     output: list[dict[str, object]] = []
     for distribution in distributions:
         order = np.argsort(distribution.ravel())[::-1][: args.top_k]
@@ -98,8 +123,21 @@ def _predict_json(args: argparse.Namespace) -> None:
             }
             for index in order
         ]
-        output.append({"final_score": ranked[0]["score"], "ranked_scores": ranked})
-    _json_dump(output if isinstance(raw, list) else output[0], Path(args.output) if args.output else None)
+        output.append(
+            {
+                "final_score": ranked[0]["score"],
+                "ranked_scores": ranked,
+                "residual_selection": {
+                    "alpha": bundle.model.selection_.alpha,
+                    "beta": bundle.model.selection_.beta,
+                    "tail_boost": bundle.model.selection_.tail_boost,
+                },
+            }
+        )
+    _json_dump(
+        output if isinstance(raw, list) else output[0],
+        Path(args.output) if args.output else None,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -115,7 +153,7 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--folds", type=int, default=3)
     backtest.add_argument("--initial-train-fraction", type=float, default=0.65)
     backtest.add_argument("--trees", type=int, default=180)
-    backtest.add_argument("--min-leaf", type=int, default=2)
+    backtest.add_argument("--min-leaf", type=int, default=3)
     backtest.add_argument("--max-goals", type=int, default=7)
     backtest.add_argument("--top-k", type=int, default=5)
     backtest.add_argument("--seed", type=int, default=42)
