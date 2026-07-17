@@ -18,38 +18,7 @@ jobs:
       - run: ruff check src tests
       - run: pytest
 
-  real-data-backtest:
-    needs: unit-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[dev]"
-      - name: Install bundled real EPL results and odds
-        run: pip install git+https://github.com/AnishKhetani/premier-league-data.git
-      - name: Walk-forward train and benchmark on real EPL data
-        run: >-
-          football-v2 backtest-real
-          --start-date 2000-01-01
-          --folds 2
-          --trees 80
-          --min-leaf 3
-          --top-k 5
-          --output artifacts/epl_backtest.json
-          --model-output artifacts/epl_model.joblib
-      - name: Print benchmark report
-        run: cat artifacts/epl_backtest.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: epl-v2-backtest-and-model
-          path: artifacts/
-          retention-days: 14
-
-  wyscout-event-tail-backtest:
+  wyscout-live-dynamic-backtest:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -59,12 +28,14 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[dev]" "kloppy>=3.19"
+      - run: pip install -e ".[dev]"
       - uses: actions/cache@v4
         with:
-          path: .cache/wyscout-repo
-          key: wyscout-public-top-five-leagues-v2-format
-      - name: Clone public full-season Wyscout events
+          path: |
+            .cache/wyscout-repo
+            .cache/football-data
+          key: wyscout-live-dynamic-v1
+      - name: Clone public Wyscout events
         run: |
           if [ ! -d .cache/wyscout-repo/.git ]; then
             rm -rf .cache/wyscout-repo
@@ -72,23 +43,21 @@ jobs:
           fi
           rm -rf .cache/wyscout-repo/processed
           ln -s processed-v2 .cache/wyscout-repo/processed
-      - name: Run full-season event-tail walk-forward test
+      - name: Run 15 30 45 minute cross-league dynamic test
         run: |
           mkdir -p artifacts
           set +e
-          python scripts/run_wyscout_event_backtest.py \
+          python scripts/run_wyscout_live_backtest.py \
             --data-root .cache/wyscout-repo \
             --workers 8 \
-            --folds 3 \
-            --initial-train-fraction 0.55 \
-            --output artifacts/wyscout_event_tail.json \
-            > artifacts/wyscout_run.log 2>&1
+            --output artifacts/wyscout_live_tail.json \
+            > artifacts/wyscout_live_run.log 2>&1
           status=$?
-          cat artifacts/wyscout_run.log
+          cat artifacts/wyscout_live_run.log
           exit $status
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wyscout-event-tail-diagnostics
+          name: wyscout-live-dynamic-report
           path: artifacts/
           retention-days: 14
