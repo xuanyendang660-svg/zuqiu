@@ -71,8 +71,14 @@ def season_codes(start_year: int = 2000, end_year: int = 2025) -> tuple[str, ...
 
 def _download(url: str, path: Path) -> None:
     request = Request(url, headers={"User-Agent": "football-v2-research"})
-    with urlopen(request, timeout=90) as response:
-        path.write_bytes(response.read())
+    temporary = path.with_suffix(path.suffix + ".part")
+    temporary.unlink(missing_ok=True)
+    try:
+        with urlopen(request, timeout=90) as response:
+            temporary.write_bytes(response.read())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _first_triplet(columns: Iterable[str]) -> tuple[str, str, str] | None:
@@ -86,6 +92,15 @@ def _first_triplet(columns: Iterable[str]) -> tuple[str, str, str] | None:
         ("PSH", "PSD", "PSA"),
     )
     return next((triplet for triplet in candidates if set(triplet) <= available), None)
+
+
+def _safe_inverse(values: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    return np.divide(
+        1.0,
+        values,
+        out=np.full_like(values, np.nan, dtype=float),
+        where=valid,
+    )
 
 
 def _load_file(path: Path, season: str, division: str) -> pd.DataFrame:
@@ -120,12 +135,12 @@ def _load_file(path: Path, season: str, division: str) -> pd.DataFrame:
     )
     inverse = np.column_stack(
         [
-            np.divide(1.0, home_odds, where=valid),
-            np.divide(1.0, draw_odds, where=valid),
-            np.divide(1.0, away_odds, where=valid),
+            _safe_inverse(home_odds, valid),
+            _safe_inverse(draw_odds, valid),
+            _safe_inverse(away_odds, valid),
         ]
     )
-    total = inverse.sum(axis=1)
+    total = np.nansum(inverse, axis=1)
     probabilities = np.divide(
         inverse,
         total[:, None],
@@ -147,8 +162,15 @@ def _load_file(path: Path, season: str, division: str) -> pd.DataFrame:
             "market_draw_prob": probabilities[:, 1],
             "market_away_prob": probabilities[:, 2],
         }
-    )
-    return output.dropna().reset_index(drop=True)
+    ).dropna()
+    for column in (
+        "home_score",
+        "away_score",
+        "halftime_home",
+        "halftime_away",
+    ):
+        output[column] = output[column].astype(int)
+    return output.reset_index(drop=True)
 
 
 def load_halftime_market_data(
@@ -178,9 +200,11 @@ def load_halftime_market_data(
             try:
                 frame = _load_file(path, season, division)
             except (OSError, UnicodeError, pd.errors.ParserError):
+                path.unlink(missing_ok=True)
                 skipped.append(key)
                 continue
             if frame.empty:
+                path.unlink(missing_ok=True)
                 skipped.append(key)
                 continue
             loaded.append(key)
