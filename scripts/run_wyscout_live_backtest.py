@@ -9,6 +9,9 @@ import pandas as pd
 from football_v2.event_tail_model import EventTailConfig
 from football_v2.live_dynamic_model import leave_one_league_out_live_test
 from football_v2.live_snapshots import build_live_snapshot_dataset
+from football_v2.live_upset_decomposition import (
+    leave_one_league_out_decomposed_upset_test,
+)
 from football_v2.market_event_data import join_market_events, load_market_1718
 from football_v2.wyscout_events import (
     WyscoutIndexRecord,
@@ -70,26 +73,18 @@ def main() -> None:
         max_iter=180,
         min_samples_leaf=24,
     )
-    upset_config = EventTailConfig(
-        max_alert_coverage=0.05,
-        minimum_alerts=4,
-        minimum_lift=1.50,
-        max_iter=200,
-        min_samples_leaf=18,
-    )
     jackpot = leave_one_league_out_live_test(
         live_dataset,
         target_column="final_jackpot_target",
         config=jackpot_config,
     )
-    upset = leave_one_league_out_live_test(
+    decomposed_upset = leave_one_league_out_decomposed_upset_test(
         live_dataset,
-        target_column="upset_jackpot_target",
-        config=upset_config,
+        config=EventTailConfig(max_iter=160, min_samples_leaf=20),
     )
     payload = {
         "dynamic_jackpot": jackpot.to_dict(),
-        "dynamic_upset_jackpot": upset.to_dict(),
+        "decomposed_upset_jackpot": decomposed_upset.to_dict(),
         "dataset": {
             "matches": int(live_dataset.frame["match_id"].nunique()),
             "snapshots": len(live_dataset.frame),
