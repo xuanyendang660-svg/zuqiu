@@ -75,6 +75,13 @@ jobs:
             --output artifacts/halftime_state_search.json \
             > artifacts/halftime_state_search.log 2>&1
           cat artifacts/halftime_state_search.log
+      - name: Run cross-tier and shadow validation
+        run: |
+          python scripts/run_halftime_transfer_validation.py \
+            --cache-dir .cache/football-data-halftime \
+            --output artifacts/halftime_transfer_validation.json \
+            > artifacts/halftime_transfer_validation.log 2>&1
+          cat artifacts/halftime_transfer_validation.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
