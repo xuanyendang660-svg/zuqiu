@@ -16,7 +16,7 @@ def _read_json(path: str) -> dict[str, Any]:
     with Path(path).open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
-        raise ValueError("top-level JSON must be an object")
+        raise TypeError("top-level JSON must be an object")
     return payload
 
 
@@ -79,9 +79,10 @@ def run_select(path: str, pretty: bool) -> None:
     markets = _markets(list(payload.get("markets", [])))
 
     audits = {
-        market.market_id: [asdict(item) for item in evaluate_market(
-            market, policy, settled_bets=settled_bets
-        )]
+        market.market_id: [
+            asdict(item)
+            for item in evaluate_market(market, policy, settled_bets=settled_bets)
+        ]
         for market in markets
     }
     singles = select_portfolio(markets, policy, settled_bets=settled_bets)
