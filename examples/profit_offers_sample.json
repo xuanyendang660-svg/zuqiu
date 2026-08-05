@@ -1,0 +1,40 @@
+{
+  "config": {
+    "min_single_ev": 0.03,
+    "min_probability_edge": 0.025,
+    "uncertainty_haircut": 0.03,
+    "min_parlay_ev": 0.07
+  },
+  "offers": [
+    {
+      "match_id": "match-001",
+      "market": "asian_handicap",
+      "selection": "home -0.25",
+      "line": -0.25,
+      "decimal_odds": 2.02,
+      "model_probability": 0.58,
+      "model_probability_lower": 0.54,
+      "market_fair_probability": 0.50
+    },
+    {
+      "match_id": "match-002",
+      "market": "totals",
+      "selection": "under 2.75",
+      "line": 2.75,
+      "decimal_odds": 1.98,
+      "model_probability": 0.59,
+      "model_probability_lower": 0.55,
+      "market_fair_probability": 0.51
+    },
+    {
+      "match_id": "match-003",
+      "market": "totals",
+      "selection": "over 2.5",
+      "line": 2.5,
+      "decimal_odds": 1.83,
+      "model_probability": 0.55,
+      "model_probability_lower": 0.51,
+      "market_fair_probability": 0.53
+    }
+  ]
+}
