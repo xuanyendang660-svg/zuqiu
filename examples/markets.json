@@ -1,0 +1,84 @@
+{
+  "settled_bets": 0,
+  "policy": {
+    "shadow_mode": true,
+    "min_settled_bets": 500,
+    "min_edge_pp": 0.025,
+    "min_ev": 0.03,
+    "min_parlay_ev": 0.05
+  },
+  "markets": [
+    {
+      "event_id": "match-001",
+      "market_id": "match-001-ou-2.5",
+      "market_type": "total",
+      "devig_method": "power",
+      "outcomes": [
+        {
+          "selection": "over 2.5",
+          "odds": 2.05,
+          "model_probability": 0.55,
+          "uncertainty": 0.01,
+          "data_quality": 0.95,
+          "bookmaker": "example"
+        },
+        {
+          "selection": "under 2.5",
+          "odds": 1.82,
+          "model_probability": 0.45,
+          "uncertainty": 0.01,
+          "data_quality": 0.95,
+          "bookmaker": "example"
+        }
+      ]
+    },
+    {
+      "event_id": "match-002",
+      "market_id": "match-002-ah-home-minus-0.25",
+      "market_type": "asian_handicap",
+      "outcomes": [
+        {
+          "selection": "home -0.25",
+          "odds": 1.98,
+          "model_probability": 0.54,
+          "uncertainty": 0.01,
+          "data_quality": 0.92,
+          "bookmaker": "example",
+          "line": -0.25
+        },
+        {
+          "selection": "away +0.25",
+          "odds": 1.90,
+          "model_probability": 0.46,
+          "uncertainty": 0.01,
+          "data_quality": 0.92,
+          "bookmaker": "example",
+          "line": 0.25
+        }
+      ]
+    },
+    {
+      "event_id": "match-003",
+      "market_id": "match-003-ou-3.0",
+      "market_type": "total",
+      "outcomes": [
+        {
+          "selection": "over 3.0",
+          "odds": 1.91,
+          "model_probability": 0.51,
+          "uncertainty": 0.03,
+          "data_quality": 0.74,
+          "bookmaker": "example"
+        },
+        {
+          "selection": "under 3.0",
+          "odds": 1.97,
+          "model_probability": 0.49,
+          "uncertainty": 0.03,
+          "data_quality": 0.74,
+          "bookmaker": "example"
+        }
+      ]
+    }
+  ]
+}
