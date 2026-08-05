@@ -91,23 +91,23 @@ def test_parlay_uses_only_two_qualified_different_events() -> None:
 
 
 def test_same_event_parlay_is_rejected_by_default() -> None:
-    base = dict(
-        decision="BET",
-        event_id="same",
-        market_type="total",
-        odds=2.0,
-        market_probability=0.50,
-        model_probability=0.56,
-        conservative_probability=0.55,
-        fair_odds=1 / 0.56,
-        edge_pp=0.06,
-        expected_value=0.12,
-        conservative_expected_value=0.10,
-        recommended_stake_fraction=0.005,
-        execution_stake_fraction=0.0,
-        data_quality=0.95,
-        reasons=("all_value_gates_passed",),
-    )
+    base = {
+        "decision": "BET",
+        "event_id": "same",
+        "market_type": "total",
+        "odds": 2.0,
+        "market_probability": 0.50,
+        "model_probability": 0.56,
+        "conservative_probability": 0.55,
+        "fair_odds": 1 / 0.56,
+        "edge_pp": 0.06,
+        "expected_value": 0.12,
+        "conservative_expected_value": 0.10,
+        "recommended_stake_fraction": 0.005,
+        "execution_stake_fraction": 0.0,
+        "data_quality": 0.95,
+        "reasons": ("all_value_gates_passed",),
+    }
     first = BetCandidate(market_id="m1", selection="over", **base)
     second = BetCandidate(market_id="m2", selection="home", **base)
     assert build_two_leg_parlays((first, second), Policy()) == ()
