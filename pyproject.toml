@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 profit-bet-cli = "profit_model.cli:main"
+profit-backtest-cli = "profit_model.backtest_cli:main"
 exact-score-cli = "score_model.cli:main"
 
 [tool.setuptools.packages.find]
