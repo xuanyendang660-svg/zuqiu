@@ -3,13 +3,17 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "exact-score-model"
-version = "0.1.0"
-description = "Football exact-score model and Football-Data residual training system."
+name = "football-market-edge-model"
+version = "0.2.0"
+description = "Football market-edge, positive-EV single bet, and two-leg parlay research system."
 requires-python = ">=3.11"
 dependencies = [
     "joblib>=1.3",
 ]
+
+[project.scripts]
+profit-bet-cli = "profit_model.cli:main"
+exact-score-cli = "score_model.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
