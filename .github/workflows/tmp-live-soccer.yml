@@ -1,0 +1,29 @@
+name: Temporary live soccer lookup
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query ESPN scoreboards
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          UA={'User-Agent':'Mozilla/5.0','Accept':'application/json'}
+          leagues=['fin.1','fin.2','irl.1','irl.2','fifa.world']
+          for lg in leagues:
+              url=f'https://site.api.espn.com/apis/site/v2/sports/soccer/{lg}/scoreboard?dates=20260710'
+              try:
+                  req=urllib.request.Request(url,headers=UA)
+                  with urllib.request.urlopen(req,timeout=20) as r: data=json.load(r)
+                  print('LEAGUE',lg)
+                  for e in data.get('events',[]):
+                      comp=e.get('competitions',[{}])[0]
+                      teams=comp.get('competitors',[])
+                      print(json.dumps({'id':e.get('id'),'name':e.get('name'),'date':e.get('date'),'status':e.get('status'),'competitors':teams,'odds':comp.get('odds'),'details':comp.get('details')},ensure_ascii=False,separators=(',',':')))
+              except Exception as ex:
+                  print('ERR',lg,repr(ex))
+          PY
