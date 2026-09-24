@@ -1,0 +1,342 @@
+{
+  "status": "RESEARCH_ONLY",
+  "sample_count": 14305,
+  "train_count": 11941,
+  "holdout_count": 2364,
+  "holdout_range": [
+    "2024-08-09",
+    "2025-05-25"
+  ],
+  "joint": {
+    "n": 2364,
+    "exact_hit_rate": 0.1239424703891709,
+    "mean_log_loss": 2.9108976338391015,
+    "direction_hit_rate": 0.43485617597292725,
+    "margin_hit_rate_given_correct_direction": 0.5573929961089494,
+    "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5379377431906615,
+    "axis_conditional_sample_count": 1028,
+    "total_band_hit_rate": 0.2377326565143824,
+    "direction_brier": 0.19471926422972907,
+    "total_band_brier": 0.15755468784453416
+  },
+  "dc": {
+    "n": 2364,
+    "exact_hit_rate": 0.1260575296108291,
+    "mean_log_loss": 2.9066975678339197,
+    "direction_hit_rate": 0.4200507614213198,
+    "margin_hit_rate_given_correct_direction": 0.595166163141994,
+    "loser_or_draw_goals_hit_rate_given_correct_direction": 0.526686807653575,
+    "axis_conditional_sample_count": 993,
+    "total_band_hit_rate": 0.2428087986463621,
+    "direction_brier": 0.19464701751593524,
+    "total_band_brier": 0.1572710210974707
+  },
+  "fused": {
+    "n": 2364,
+    "exact_hit_rate": 0.1239424703891709,
+    "mean_log_loss": 2.9108976338391015,
+    "direction_hit_rate": 0.43485617597292725,
+    "margin_hit_rate_given_correct_direction": 0.5573929961089494,
+    "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5379377431906615,
+    "axis_conditional_sample_count": 1028,
+    "total_band_hit_rate": 0.2377326565143824,
+    "direction_brier": 0.19471926422972907,
+    "total_band_brier": 0.15755468784453416
+  },
+  "joint_vs_dc": {
+    "log_loss_improvement_95pct_interval": [
+      -0.00739314031193639,
+      -0.0006600238406689842
+    ],
+    "exact_hit_improvement_95pct_interval": [
+      -0.009631333225404066,
+      0.005295192357076744
+    ],
+    "bootstrap_unit": "calendar_date",
+    "draws": 400
+  },
+  "fused_vs_dc": {
+    "log_loss_improvement_95pct_interval": [
+      -0.00739314031193639,
+      -0.0006600238406689842
+    ],
+    "exact_hit_improvement_95pct_interval": [
+      -0.009631333225404066,
+      0.005295192357076744
+    ],
+    "bootstrap_unit": "calendar_date",
+    "draws": 400
+  },
+  "calibration": {
+    "joint": {
+      "direction": {
+        "主胜": {
+          "predicted": 0.44571351727058,
+          "observed": 0.4259729272419628
+        },
+        "平": {
+          "predicted": 0.2187554825798486,
+          "observed": 0.25084602368866327
+        },
+        "客胜": {
+          "predicted": 0.335531000149558,
+          "observed": 0.32318104906937395
+        }
+      },
+      "total_band": {
+        "0–1": {
+          "predicted": 0.21932179971758825,
+          "observed": 0.22292724196277497
+        },
+        "2": {
+          "predicted": 0.22755585267776685,
+          "observed": 0.24619289340101522
+        },
+        "3": {
+          "predicted": 0.21784124401623522,
+          "observed": 0.2182741116751269
+        },
+        "4": {
+          "predicted": 0.15916493998945846,
+          "observed": 0.1577834179357022
+        },
+        "5+": {
+          "predicted": 0.17611616359894763,
+          "observed": 0.1548223350253807
+        }
+      }
+    },
+    "dc": {
+      "direction": {
+        "主胜": {
+          "predicted": 0.4456727674025476,
+          "observed": 0.4259729272419628
+        },
+        "平": {
+          "predicted": 0.22682390553295645,
+          "observed": 0.25084602368866327
+        },
+        "客胜": {
+          "predicted": 0.32750332706442364,
+          "observed": 0.32318104906937395
+        }
+      },
+      "total_band": {
+        "0–1": {
+          "predicted": 0.21691975333230085,
+          "observed": 0.22292724196277497
+        },
+        "2": {
+          "predicted": 0.2322829643046176,
+          "observed": 0.24619289340101522
+        },
+        "3": {
+          "predicted": 0.2189544292079454,
+          "observed": 0.2182741116751269
+        },
+        "4": {
+          "predicted": 0.1590597272829535,
+          "observed": 0.1577834179357022
+        },
+        "5+": {
+          "predicted": 0.17278312587214759,
+          "observed": 0.1548223350253807
+        }
+      }
+    }
+  },
+  "by_league": {
+    "D1": {
+      "joint": {
+        "n": 306,
+        "exact_hit_rate": 0.09803921568627451,
+        "mean_log_loss": 3.1391191809682395,
+        "direction_hit_rate": 0.39215686274509803,
+        "margin_hit_rate_given_correct_direction": 0.6166666666666667,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.44166666666666665,
+        "axis_conditional_sample_count": 120,
+        "total_band_hit_rate": 0.21241830065359477,
+        "direction_brier": 0.20530020751921266,
+        "total_band_brier": 0.15980248298542768
+      },
+      "dc": {
+        "n": 306,
+        "exact_hit_rate": 0.0915032679738562,
+        "mean_log_loss": 3.1343025805817817,
+        "direction_hit_rate": 0.3888888888888889,
+        "margin_hit_rate_given_correct_direction": 0.6050420168067226,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.40336134453781514,
+        "axis_conditional_sample_count": 119,
+        "total_band_hit_rate": 0.20915032679738563,
+        "direction_brier": 0.20568123897371612,
+        "total_band_brier": 0.15928785859591235
+      }
+    },
+    "E0": {
+      "joint": {
+        "n": 380,
+        "exact_hit_rate": 0.11578947368421053,
+        "mean_log_loss": 2.9756632125730054,
+        "direction_hit_rate": 0.3973684210526316,
+        "margin_hit_rate_given_correct_direction": 0.5562913907284768,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5165562913907285,
+        "axis_conditional_sample_count": 151,
+        "total_band_hit_rate": 0.23684210526315788,
+        "direction_brier": 0.19720349855299749,
+        "total_band_brier": 0.15988499474557688
+      },
+      "dc": {
+        "n": 380,
+        "exact_hit_rate": 0.10526315789473684,
+        "mean_log_loss": 2.9739733948269973,
+        "direction_hit_rate": 0.37894736842105264,
+        "margin_hit_rate_given_correct_direction": 0.5902777777777778,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5,
+        "axis_conditional_sample_count": 144,
+        "total_band_hit_rate": 0.23421052631578948,
+        "direction_brier": 0.19725372280155443,
+        "total_band_brier": 0.1597433274018455
+      }
+    },
+    "F1": {
+      "joint": {
+        "n": 306,
+        "exact_hit_rate": 0.10457516339869281,
+        "mean_log_loss": 3.002571883580594,
+        "direction_hit_rate": 0.3954248366013072,
+        "margin_hit_rate_given_correct_direction": 0.5537190082644629,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.48760330578512395,
+        "axis_conditional_sample_count": 121,
+        "total_band_hit_rate": 0.2647058823529412,
+        "direction_brier": 0.19089552820256228,
+        "total_band_brier": 0.15895361755891307
+      },
+      "dc": {
+        "n": 306,
+        "exact_hit_rate": 0.11764705882352941,
+        "mean_log_loss": 3.0012232695947993,
+        "direction_hit_rate": 0.4019607843137255,
+        "margin_hit_rate_given_correct_direction": 0.6341463414634146,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.4878048780487805,
+        "axis_conditional_sample_count": 123,
+        "total_band_hit_rate": 0.27124183006535946,
+        "direction_brier": 0.19081110589090153,
+        "total_band_brier": 0.1590351243081242
+      }
+    },
+    "I1": {
+      "joint": {
+        "n": 380,
+        "exact_hit_rate": 0.13421052631578947,
+        "mean_log_loss": 2.787888472743439,
+        "direction_hit_rate": 0.45,
+        "margin_hit_rate_given_correct_direction": 0.5497076023391813,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5964912280701754,
+        "axis_conditional_sample_count": 171,
+        "total_band_hit_rate": 0.23684210526315788,
+        "direction_brier": 0.19536749757497082,
+        "total_band_brier": 0.15710517529901577
+      },
+      "dc": {
+        "n": 380,
+        "exact_hit_rate": 0.13421052631578947,
+        "mean_log_loss": 2.7850799934051396,
+        "direction_hit_rate": 0.4026315789473684,
+        "margin_hit_rate_given_correct_direction": 0.5816993464052288,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.6013071895424836,
+        "axis_conditional_sample_count": 153,
+        "total_band_hit_rate": 0.24736842105263157,
+        "direction_brier": 0.19536923442698653,
+        "total_band_brier": 0.15717027980834117
+      }
+    },
+    "N1": {
+      "joint": {
+        "n": 306,
+        "exact_hit_rate": 0.12418300653594772,
+        "mean_log_loss": 3.0033964180985757,
+        "direction_hit_rate": 0.4673202614379085,
+        "margin_hit_rate_given_correct_direction": 0.4965034965034965,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5244755244755245,
+        "axis_conditional_sample_count": 143,
+        "total_band_hit_rate": 0.24183006535947713,
+        "direction_brier": 0.1933615470332443,
+        "total_band_brier": 0.15814389417293717
+      },
+      "dc": {
+        "n": 306,
+        "exact_hit_rate": 0.12745098039215685,
+        "mean_log_loss": 2.9977962121537742,
+        "direction_hit_rate": 0.45751633986928103,
+        "margin_hit_rate_given_correct_direction": 0.5428571428571428,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5142857142857142,
+        "axis_conditional_sample_count": 140,
+        "total_band_hit_rate": 0.24183006535947713,
+        "direction_brier": 0.1930917014576169,
+        "total_band_brier": 0.15755215936005906
+      }
+    },
+    "P1": {
+      "joint": {
+        "n": 306,
+        "exact_hit_rate": 0.15359477124183007,
+        "mean_log_loss": 2.72962642956495,
+        "direction_hit_rate": 0.4869281045751634,
+        "margin_hit_rate_given_correct_direction": 0.5771812080536913,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.610738255033557,
+        "axis_conditional_sample_count": 149,
+        "total_band_hit_rate": 0.27124183006535946,
+        "direction_brier": 0.18802780125918897,
+        "total_band_brier": 0.15471812785761468
+      },
+      "dc": {
+        "n": 306,
+        "exact_hit_rate": 0.1568627450980392,
+        "mean_log_loss": 2.7201972830184467,
+        "direction_hit_rate": 0.4934640522875817,
+        "margin_hit_rate_given_correct_direction": 0.5827814569536424,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.6026490066225165,
+        "axis_conditional_sample_count": 151,
+        "total_band_hit_rate": 0.2647058823529412,
+        "direction_brier": 0.1877141013143595,
+        "total_band_brier": 0.1539220954120919
+      }
+    },
+    "SP1": {
+      "joint": {
+        "n": 380,
+        "exact_hit_rate": 0.13421052631578947,
+        "mean_log_loss": 2.78302607589054,
+        "direction_hit_rate": 0.45526315789473687,
+        "margin_hit_rate_given_correct_direction": 0.5606936416184971,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5491329479768786,
+        "axis_conditional_sample_count": 173,
+        "total_band_hit_rate": 0.20789473684210527,
+        "direction_brier": 0.19262717474237775,
+        "total_band_brier": 0.15454703142004467
+      },
+      "dc": {
+        "n": 380,
+        "exact_hit_rate": 0.14736842105263157,
+        "mean_log_loss": 2.7784627451432655,
+        "direction_hit_rate": 0.42894736842105263,
+        "margin_hit_rate_given_correct_direction": 0.6319018404907976,
+        "loser_or_draw_goals_hit_rate_given_correct_direction": 0.5398773006134969,
+        "axis_conditional_sample_count": 163,
+        "total_band_hit_rate": 0.23421052631578948,
+        "direction_brier": 0.19235682232638643,
+        "total_band_brier": 0.1543251800148313
+      }
+    }
+  },
+  "market_holdout_asof_verified": 0,
+  "market_blocked": {
+    "MARKET_MISSING": 2364
+  },
+  "limitations": [
+    "Dataset quote timestamps are absent; embedded prices were excluded.",
+    "Score-derived features are rebuilt by calendar day.",
+    "True prospective freeze and event timeline are not provided."
+  ],
+  "source_sha256": "d2c10fab71f76e52c52166e41a23f0f5e1b11e4103d4794a1c736bece3660fd9"
+}
