@@ -2,10 +2,16 @@
 
 import math
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from football_score.model import (fair_cover, fuse, joint_distribution,
-                                  market_distribution, settlement, top_score)
+from football_score.model import (
+    fair_cover,
+    fuse,
+    joint_distribution,
+    market_distribution,
+    settlement,
+    top_score,
+)
 from football_score.review import review
 from football_score.workflow import _rebuild_prior, market_asof
 
@@ -63,7 +69,7 @@ class ScoreWorkflowTests(unittest.TestCase):
         self.assertTrue(market_asof(self.row, quote)[1].startswith("MARKET_BLOCKED"))
 
     def test_weekly_audit_does_not_invent_stop_state_or_cause(self):
-        kick = datetime.now(timezone.utc) - timedelta(days=2)
+        kick = datetime.now(UTC) - timedelta(days=2)
         old = []
         results = []
         for i in range(4):

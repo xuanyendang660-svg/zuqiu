@@ -8,13 +8,20 @@ import json
 import math
 import random
 from collections import defaultdict, deque
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import numpy as np
 
-from .model import (dc_distribution, fit_dc, fit_joint, fuse,
-                    joint_distribution, market_distribution, top_score)
+from .model import (
+    dc_distribution,
+    fit_dc,
+    fit_joint,
+    fuse,
+    joint_distribution,
+    market_distribution,
+    top_score,
+)
 
 
 def load_history(path: str | Path) -> tuple[list[dict], str]:
@@ -87,10 +94,10 @@ def _rebuild_prior(rows: list[dict]):
 
 
 def _parse_utc(value: str) -> datetime:
-    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
         raise ValueError("timestamp has no timezone")
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def market_asof(row: dict, quotes: dict | None):
@@ -122,7 +129,7 @@ def read_quotes(path: str | Path | None) -> dict:
         return {}
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, list):
-        raise ValueError("quotes must be a JSON list of timestamped snapshots")
+        raise TypeError("quotes must be a JSON list of timestamped snapshots")
     out = {}
     for quote in data:
         key = quote["match_id"]
@@ -318,7 +325,7 @@ def predict(row: dict, artifact: dict):
     if not all(row.get(k) for k in ("match_id", "home_team", "away_team", "kickoff_utc")):
         raise ValueError("DATA_BLOCKED: match identity, teams and kickoff_utc are required")
     kickoff = _parse_utc(row["kickoff_utc"])
-    if kickoff <= datetime.now(timezone.utc):
+    if kickoff <= datetime.now(UTC):
         raise ValueError("DATA_BLOCKED: freeze must precede kickoff")
     if not row.get("feature_source") or not all(row.get(k) for k in
                                                  ("features_published_at", "features_observed_at")):
@@ -356,7 +363,7 @@ def predict(row: dict, artifact: dict):
             "features_observed_at": row["features_observed_at"],
             "market_status": market_status, "market_diagnostics": market_info,
             "distribution": {f"{h}-{a}": v for (h, a), v in q.items()},
-            "frozen_at": datetime.now(timezone.utc).isoformat()}
+            "frozen_at": datetime.now(UTC).isoformat()}
 
 
 def write_new(path: str | Path, data: dict):

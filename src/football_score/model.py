@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import least_squares, minimize
 from scipy.special import expit, gammaln
 from scipy.stats import nbinom, poisson
 

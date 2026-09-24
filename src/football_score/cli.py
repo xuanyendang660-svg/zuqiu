@@ -8,8 +8,7 @@ import sys
 from pathlib import Path
 
 from .review import review_files
-from .workflow import (load_history, predict, read_quotes, train_and_backtest,
-                       write_new)
+from .workflow import load_history, predict, read_quotes, train_and_backtest, write_new
 
 
 def main(argv=None):
@@ -53,7 +52,7 @@ def main(argv=None):
             write_new(args.out, result)
         print(json.dumps(result, ensure_ascii=False))
         return 0
-    except (ValueError, KeyError, FileNotFoundError, FileExistsError, RuntimeError) as exc:
+    except (ValueError, TypeError, KeyError, FileNotFoundError, FileExistsError, RuntimeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
