@@ -11,13 +11,12 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = [
-  "pytest>=8.0",
-  "ruff>=0.6",
-]
+score = ["numpy>=1.26", "scipy>=1.11"]
+dev = ["pytest>=8.0", "ruff>=0.6", "numpy>=1.26", "scipy>=1.11"]
 
 [project.scripts]
 football-value = "football_value.cli:main"
+football-score = "football_score.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
