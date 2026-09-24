@@ -9,7 +9,6 @@ from scipy.optimize import least_squares, minimize
 from scipy.special import expit, gammaln
 from scipy.stats import nbinom, poisson
 
-
 REQUIRED = (
     "league_avg_goals_pre", "league_home_goals_pre", "league_away_goals_pre",
     "home_recent8_gf", "home_recent8_ga", "away_recent8_gf", "away_recent8_ga",
